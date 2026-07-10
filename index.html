@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sean Learns JS</title>
+  </head>
+  <body style="background: #5c4033">
+    <h1>chess, no toppings</h1>
+    <style>
+      body {
+        margin: 10px;
+        padding: 10px;
+        font-size: 10px;
+        font-family: Arial, Helvetica, sans-serif;
+        color: darkgreen;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(8, 30px);
+        grid-template-rows: repeat(8, 30px);
+      }
+
+      .dark {
+        background-color: #84a580;
+      }
+      .light {
+        background-color: beige;
+      }
+    </style>
+
+    <div class="grid"></div>
+    <button id="flipBtn">Flip board</button>
+
+    <script>
+      let flipped = false;
+      const flipBtn = document.getElementById("flipBtn");
+
+      console.log("Hello world!");
+      renderBoard();
+
+      flipBtn.addEventListener("click", function () {
+        if (flipped) {
+          flipped = false;
+
+          console.log("Unflipped!");
+        } else {
+          flipped = true;
+          console.log("Flipped!");
+        }
+        renderBoard();
+      });
+
+      function renderBoard() {
+        const grid = document.querySelector(".grid");
+
+        grid.innerHTML = "";
+        const cols = ["A", "B", "C", "D", "E", "F", "G", "H"];
+        const rows = ["1", "2", "3", "4", "5", "6", "7", "8"];
+
+        rows.reverse();
+        if (flipped) {
+          cols.reverse();
+          rows.reverse();
+        }
+
+        let dark = true;
+        for (let row = 0; row < 8; row++) {
+          if (row % 2 === 0) {
+            dark = true;
+          } else {
+            dark = false;
+          }
+          for (let col = 0; col < 8; col++) {
+            const square = document.createElement("div");
+
+            if (row == 7) {
+              square.textContent = cols[col];
+            }
+            if (col == 0) {
+              square.textContent += rows[row];
+            }
+
+            if (dark) {
+              square.classList.add("light");
+              dark = false;
+            } else {
+              square.classList.add("dark");
+              dark = true;
+            }
+            grid.appendChild(square);
+          }
+        }
+      }
+    </script>
+  </body>
+</html>
