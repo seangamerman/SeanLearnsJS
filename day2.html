@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sean Learns JS Day 2</title>
+  </head>
+  <body style="background-color: gray">
+    <a href="index.html" rel="noopener noreferrer">Prev</a>
+    <span>| July 10, 2026 | </span>
+    <a href="day3.html" rel="noopener noreferrer">Next</a>
+    <h2>Day 2</h2>
+    <h1>Painter? I hardly know'er</h1>
+    <div id="cols">
+      <div id="col1">
+        <div id="palette"></div>
+        <button id="clear" class="button">X</button>
+        <button id="eraser" class="button" style="border: 3px solid gray">
+          Eraser
+        </button>
+        <button id="fill" class="button" style="border: 3px solid gray">
+          Fill
+        </button>
+        <div id="grid"></div>
+      </div>
+      <div id="col2">
+        <h2>Gallery</h2>
+        <p>Small pink dog by Jan</p>
+        <img src="assets/jandog.png" alt="Pink dog by Jan" />
+        <p>Little prince by Sean</p>
+        <img src="assets/lilprince.png" alt="A little prince by Sean" />
+      </div>
+    </div>
+    <style>
+      #cols {
+        display: flex;
+        gap: 20px;
+      }
+
+      #col2 {
+        width: 200px;
+      }
+
+      #col2 img {
+        width: 100%;
+        height: auto;
+        padding: 0px;
+        margin: 0px;
+      }
+      #col2 p {
+        padding: 3px;
+        margin: 0px;
+      }
+
+      .button {
+        color: rgb(23, 23, 23);
+        background-color: rgb(212, 212, 212);
+        border: none;
+      }
+
+      #palette {
+        display: grid;
+        grid-template-columns: repeat(20, 15px);
+        grid-template-rows: repeat(1, 15px);
+      }
+      #grid {
+        display: grid;
+        grid-template-columns: repeat(100, 5px);
+        grid-template-rows: repeat(100, 5px);
+        user-select: none;
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        -webkit-user-drag: none;
+      }
+    </style>
+
+    <script>
+      let canvasColor = "white";
+      makePalette();
+
+      function makePalette() {
+        const paletteColors = [
+          "brown",
+          "red",
+          "orange",
+          "yellow",
+          "yellowgreen",
+          "green",
+          "cyan",
+          "blue",
+          "purple",
+          "rgb(181, 112, 255)",
+          "pink",
+          "white",
+          "rgb(212, 212, 212)",
+          "gray",
+        ];
+        paletteColors.forEach((paletteColor) => {
+          makepalettecell(paletteColor);
+        });
+        makepalettecell("black", true);
+      }
+
+      function makepalettecell(color, defaultSelection = false) {
+        const newCell = document.createElement("div");
+        newCell.classList.add("palettecell");
+        recolor(newCell, color);
+        palette.appendChild(newCell);
+        if (defaultSelection) {
+          newCell.classList.add("defaultSelection");
+          newCell.style.border = "2px solid white";
+        }
+      }
+
+      for (let i = 0; i < 100 * 100; i++) {
+        const cell = document.createElement("div");
+        cell.classList.add("shape");
+        recolor(cell, canvasColor);
+        cell.row = Math.floor(i / 100);
+        cell.col = i % 100;
+        grid.appendChild(cell);
+      }
+      const clearBtn = document.getElementById("clear");
+      const eraseBtn = document.getElementById("eraser");
+      const fillBtn = document.getElementById("fill");
+      const shapes = document.querySelectorAll(".shape");
+      let drawing = false;
+      let erasing = false;
+      let paintColor = "black";
+      let filling = false;
+
+      const palettecells = document.querySelectorAll(".palettecell");
+      palettecells.forEach((palettecell) => {
+        palettecell.addEventListener("click", function () {
+          deselectPalette();
+          select(palettecell);
+        });
+      });
+
+      function deselectPalette() {
+        palettecells.forEach((cell) => {
+          cell.style.border = "0px solid white";
+        });
+      }
+
+      function selectDefault() {
+        const defaultSelection = document.querySelector(".defaultSelection");
+        select(defaultSelection);
+      }
+
+      function select(cell) {
+        deselectEraser();
+        cell.style.border = "2px solid white";
+        paintColor = cell.style.backgroundColor;
+      }
+
+      eraseBtn.addEventListener("click", function () {
+        //toggle eraser
+        if (erasing) {
+          deselectEraser();
+          selectDefault();
+        } else {
+          selectEraser();
+        }
+      });
+
+      function selectEraser() {
+        erasing = true;
+        deselectFill();
+        eraseBtn.style.border = "3px solid white";
+        deselectPalette();
+      }
+
+      function deselectEraser() {
+        erasing = false;
+        eraseBtn.style.border = "3px solid gray";
+      }
+
+      function selectFill() {
+        filling = true;
+        fillBtn.style.border = "3px solid white";
+        deselectEraser();
+      }
+
+      function deselectFill() {
+        filling = false;
+        fillBtn.style.border = "3px solid gray";
+      }
+
+      clearBtn.addEventListener("click", function () {
+        shapes.forEach((shape) => {
+          erase(shape);
+        });
+      });
+
+      fillBtn.addEventListener("click", function () {
+        if (filling) {
+          deselectFill();
+        } else {
+          selectFill();
+        }
+      });
+
+      document.addEventListener("mousedown", () => {
+        drawing = true;
+      });
+
+      document.addEventListener("mouseup", () => {
+        drawing = false;
+      });
+
+      shapes.forEach((shape) => {
+        shape.addEventListener("mouseover", function () {
+          if (drawing) {
+            paint(shape);
+          }
+        });
+        shape.addEventListener("click", function () {
+          paint(shape);
+        });
+      });
+
+      function paint(shape) {
+        if (erasing) {
+          erase(shape);
+        } else if (filling) {
+          fill(shape);
+        } else {
+          recolor(shape, paintColor);
+        }
+      }
+
+      function fill(shape) {
+        printCell(shape, "You clicked on:");
+        // recolor(shape);
+        let preColor = shape.style.backgroundColor;
+        recolor(shape);
+        recolorNbrsOf(shape, preColor);
+      }
+
+      function recolorNbrsOf(shape, preColor, visited = new Set()) {
+        shapes.forEach((potentialNbr) => {
+          if (
+            (!visited.has(potentialNbr) &&
+              potentialNbr.row == shape.row &&
+              (potentialNbr.col == shape.col + 1 ||
+                potentialNbr.col == shape.col - 1)) ||
+            (potentialNbr.col == shape.col &&
+              (potentialNbr.row == shape.row + 1 ||
+                potentialNbr.row == shape.row - 1))
+          ) {
+            let nbr = potentialNbr;
+            visited.add(nbr);
+            if (nbr.style.backgroundColor == preColor) {
+              //printCell(shape, (label = "Neighbor looks like me: "));
+              recolor(nbr);
+              recolorNbrsOf(potentialNbr, preColor);
+            } else {
+              //printCell(shape, (label = "Neighbor looks strange: "));
+            }
+          }
+        });
+      }
+
+      function printCell(shape, label = "") {
+        //console.log(label + shape.row + ", " + shape.col);
+      }
+
+      function findNbrsOf(shape) {}
+
+      function erase(shape) {
+        recolor(shape, canvasColor);
+      }
+
+      function recolor(shape, color = paintColor) {
+        shape.style.backgroundColor = color;
+      }
+    </script>
+  </body>
+</html>
