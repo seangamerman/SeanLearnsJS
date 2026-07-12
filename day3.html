@@ -119,7 +119,7 @@
           immovable: true,
           blocks: [
             {
-              walls: ["n", "e", "s", "w"],
+              walls: ["north", "east", "south", "west"],
             },
           ],
         },
@@ -128,7 +128,7 @@
           blocks: [
             {
               nestingSize: 1,
-              walls: ["e", "s", "w"],
+              walls: ["east", "south", "west"],
             },
           ],
         },
@@ -136,30 +136,132 @@
           color: "orange",
           blocks: [
             {
-              walls: ["n", "e", "s", "w"],
+              walls: ["north", "east", "south", "west"],
             },
             {
               nestingSize: 2,
               offset: [1, 0],
-              walls: ["n", "w"],
+              walls: ["north", "west"],
             },
             {
               nestingSize: 2,
               offset: [1, 1],
-              walls: ["n", "e"],
+              walls: ["north", "east"],
             },
           ],
         },
       };
+      const DIRECTIONS = {
+        north: {
+          row: -1,
+          col: 0,
+          keys: ["w", "ArrowUp"],
+          type: "cardinal",
+        },
 
+        northeast: {
+          row: -1,
+          col: 1,
+          keys: [],
+          type: "diagonal",
+        },
+
+        east: {
+          row: 0,
+          col: 1,
+          keys: ["d", "ArrowRight"],
+          type: "cardinal",
+        },
+
+        southeast: {
+          row: 1,
+          col: 1,
+          keys: [],
+          type: "diagonal",
+        },
+
+        south: {
+          row: 1,
+          col: 0,
+          keys: ["s", "ArrowDown"],
+          type: "cardinal",
+        },
+
+        southwest: {
+          row: 1,
+          col: -1,
+          keys: [],
+          type: "diagonal",
+        },
+
+        west: {
+          row: 0,
+          col: -1,
+          keys: ["a", "ArrowLeft"],
+          type: "cardinal",
+        },
+
+        northwest: {
+          row: -1,
+          col: -1,
+          keys: [],
+          type: "diagonal",
+        },
+      };
+      const INPUT = {
+        north: {
+          held: false,
+          lastPressed: 0,
+          lastMove: 0,
+        },
+
+        east: {
+          held: false,
+          lastPressed: 0,
+          lastMove: 0,
+        },
+
+        south: {
+          held: false,
+          lastPressed: 0,
+          lastMove: 0,
+        },
+
+        west: {
+          held: false,
+          lastPressed: 0,
+          lastMove: 0,
+        },
+
+        shift: false,
+
+        holdDelay: 500,
+        moveDelay: 300,
+      };
       let currentLevel = 0;
 
       LoadGame();
-      GameLoop();
 
       function LoadGame() {
+        CreateLibraries();
         LoadMap(MAPS[currentLevel]);
         CreateUI();
+        ReceiveInput();
+        GameLoop();
+
+        function CreateLibraries() {
+          const names = Object.keys(DIRECTIONS);
+
+          DIRECTIONS.all = names;
+
+          DIRECTIONS.cardinal = names.filter(
+            (direction) => DIRECTIONS[direction].type === "cardinal",
+          );
+
+          DIRECTIONS.diagonal = names.filter(
+            (direction) => DIRECTIONS[direction].type === "diagonal",
+          );
+        }
 
         function CreateUI() {
           const RELOAD_LEVEL_BTN = document.getElementById("reloadLevelBtn");
@@ -171,14 +273,138 @@
         }
       }
 
+      function ReceiveInput() {
+        document.addEventListener("keydown", (event) => {
+          const direction = GetDirectionFromKey(event.key);
+
+          if (direction) {
+            const input = INPUT[direction];
+
+            if (!input.held) {
+              console.log(direction);
+              input.lastPressed = Date.now();
+            }
+
+            input.held = true;
+          }
+
+          if (event.key === "Shift") {
+            INPUT.shift = true;
+          }
+        });
+
+        document.addEventListener("keyup", (event) => {
+          const direction = GetDirectionFromKey(event.key);
+
+          if (direction) {
+            INPUT[direction].held = false;
+          }
+
+          if (event.key === "Shift") {
+            INPUT.shift = false;
+          }
+        });
+      }
+
       function GameLoop() {
         Update();
         requestAnimationFrame(GameLoop);
       }
 
       function Update() {
-        // Input
-        // Physics
+        CheckForPlayerInput();
+
+        function CheckForPlayerInput() {
+          const now = Date.now();
+
+          for (const direction of DIRECTIONS.cardinal) {
+            const input = INPUT[direction];
+
+            if (!input.held) {
+              continue;
+            }
+
+            const heldTime = now - input.lastPressed;
+
+            if (heldTime >= INPUT.holdDelay) {
+              if (now - input.lastMove >= INPUT.moveDelay) {
+                RequestPlayerMovement(direction);
+                input.lastMove = now;
+              }
+            }
+          }
+
+          function RequestPlayerMovement(direction) {
+            console.log("GAME:", GAME);
+            console.log("player:", GAME.player);
+            console.log(GAME.player.blocks);
+            const queuedPlayers = GetPlayerQueue(GAME.player.blocks, direction);
+
+            for (const block of queuedPlayers) {
+              if (!CanPlayerBlockMove(block, direction)) {
+                return;
+              }
+            }
+
+            MoveExecutor(queuedPlayers, direction);
+          }
+
+          function CanPlayerBlockMove(block, direction) {
+            const currentCell = block.cell;
+
+            if (!CanLeaveCell(block, currentCell, direction)) {
+              return false;
+            }
+
+            const targetCell = currentCell.neighbors[direction];
+
+            if (!CanEnterCell(block, targetCell)) {
+              return false;
+            }
+
+            return true;
+          }
+
+          function CanLeaveCell(block, cell, direction) {
+            return true;
+          }
+
+          function CanEnterCell(block, cell) {
+            if (!cell) {
+              return false;
+            }
+
+            if (cell.occupant) {
+              return false;
+            }
+
+            return true;
+          }
+
+          function MoveExecutor(blocks, direction) {
+            console.log("Moving player", direction, blocks);
+          }
+
+          function GetPlayerQueue(blocks, direction) {
+            return [...blocks].sort((a, b) => {
+              if (direction === "east") {
+                return b.cell.col - a.cell.col;
+              }
+
+              if (direction === "west") {
+                return a.cell.col - b.cell.col;
+              }
+
+              if (direction === "south") {
+                return b.cell.row - a.cell.row;
+              }
+
+              if (direction === "north") {
+                return a.cell.row - b.cell.row;
+              }
+            });
+          }
+        }
       }
 
       function LoadNextMap() {
@@ -232,52 +458,35 @@
           for (const cell of CELLS.all) {
             ConnectNeighbors(cell);
           }
+        }
 
-          function ConnectNeighbors(cell) {
-            const r = cell.row;
-            const c = cell.col;
-            const g = CELLS.grid;
+        function ConnectNeighbors(cell) {
+          cell.neighbors = {};
 
-            // Locate directional neighbors
-            const n = r > 0 ? g[r - 1][c] : null;
-            const ne = r > 0 && c < map.colCount - 1 ? g[r - 1][c + 1] : null;
-            const e = c < map.colCount - 1 ? g[r][c + 1] : null;
-            const se =
-              r < map.rowCount - 1 && c < map.colCount - 1
-                ? g[r + 1][c + 1]
-                : null;
-            const s = r < map.rowCount - 1 ? g[r + 1][c] : null;
-            const sw = r < map.rowCount - 1 && c > 0 ? g[r + 1][c - 1] : null;
-            const w = c > 0 ? g[r][c - 1] : null;
-            const nw = r > 0 && c > 0 ? g[r - 1][c - 1] : null;
+          for (const direction of DIRECTIONS.all) {
+            const data = DIRECTIONS[direction];
 
-            const all = [n, ne, e, se, s, sw, w, nw];
-            const cardinal = [n, e, s, w];
-            const diagonal = [ne, se, sw, nw];
+            const row = cell.row + data.row;
+            const col = cell.col + data.col;
 
-            cell.neighbors = {
-              n,
-              ne,
-              e,
-              se,
-              s,
-              sw,
-              w,
-              nw,
-
-              all,
-              real: all.filter(Boolean),
-
-              cardinal,
-              cardinalReal: cardinal.filter(Boolean),
-
-              diagonal,
-              diagonalReal: diagonal.filter(Boolean),
-            };
+            if (
+              row >= 0 &&
+              row < map.rowCount &&
+              col >= 0 &&
+              col < map.colCount
+            ) {
+              cell.neighbors[direction] = CELLS.grid[row][col];
+            } else {
+              cell.neighbors[direction] = null;
+            }
           }
         }
 
         function SpawnPlayer() {
+          GAME.player = {
+            blocks: [],
+          };
+
           for (const origin of map.player.origins) {
             const cell = CELLS.grid[origin.row][origin.col];
             const playerBlock = document.createElement("div");
@@ -288,6 +497,10 @@
             playerBlock.style.zIndex = 0;
 
             cell.appendChild(playerBlock);
+            GAME.player.blocks.push({
+              cell,
+              element: playerBlock,
+            });
           }
         }
 
@@ -406,31 +619,31 @@
           const MIN = style.inset;
           const MAX = CELL_SIZE - style.inset;
 
-          if (direction === "n") {
+          if (direction === "north") {
             line.setAttribute("x1", MIN);
             line.setAttribute("y1", MIN);
             line.setAttribute("x2", MAX);
             line.setAttribute("y2", MIN);
           }
 
-          if (direction === "s") {
+          if (direction === "east") {
+            line.setAttribute("x1", MAX);
+            line.setAttribute("y1", MIN);
+            line.setAttribute("x2", MAX);
+            line.setAttribute("y2", MAX);
+          }
+
+          if (direction === "south") {
             line.setAttribute("x1", MIN);
             line.setAttribute("y1", MAX);
             line.setAttribute("x2", MAX);
             line.setAttribute("y2", MAX);
           }
 
-          if (direction === "w") {
+          if (direction === "west") {
             line.setAttribute("x1", MIN);
             line.setAttribute("y1", MIN);
             line.setAttribute("x2", MIN);
-            line.setAttribute("y2", MAX);
-          }
-
-          if (direction === "e") {
-            line.setAttribute("x1", MAX);
-            line.setAttribute("y1", MIN);
-            line.setAttribute("x2", MAX);
             line.setAttribute("y2", MAX);
           }
 
@@ -439,6 +652,12 @@
 
           svg.appendChild(line);
         }
+      }
+
+      function GetDirectionFromKey(key) {
+        return DIRECTIONS.all.find((direction) =>
+          DIRECTIONS[direction].keys.includes(key),
+        );
       }
     </script>
   </body>
