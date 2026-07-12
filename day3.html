@@ -280,39 +280,22 @@
         function SpawnPlayer() {
           for (const origin of map.player.origins) {
             const cell = CELLS.grid[origin.row][origin.col];
+            const playerBlock = document.createElement("div");
 
-            const svg = document.createElementNS(
-              "http://www.w3.org/2000/svg",
-              "svg",
-            );
+            playerBlock.style.position = "absolute";
+            playerBlock.style.inset = "0";
+            playerBlock.style.background = "limegreen";
+            playerBlock.style.zIndex = 0;
 
-            svg.setAttribute("width", CELL_SIZE);
-            svg.setAttribute("height", CELL_SIZE);
-
-            svg.style.position = "absolute";
-            svg.style.zIndex = 0;
-
-            const rect = document.createElementNS(
-              "http://www.w3.org/2000/svg",
-              "rect",
-            );
-
-            rect.setAttribute("x", 0);
-            rect.setAttribute("y", 0);
-            rect.setAttribute("width", CELL_SIZE);
-            rect.setAttribute("height", CELL_SIZE);
-            rect.setAttribute("fill", "limegreen");
-
-            svg.appendChild(rect);
-            cell.appendChild(svg);
+            cell.appendChild(playerBlock);
           }
         }
 
         function SpawnProps() {
           for (const propData of map.props) {
-            const prefab = PROPS[propData.type];
+            const prop = PROPS[propData.type];
 
-            if (!prefab) {
+            if (!prop) {
               console.error(
                 `Map ${MAPS.indexOf(GAME.currentMap)} "${GAME.currentMap.name}" wants to create an unknown prop "${propData.type}".`,
               );
@@ -320,29 +303,87 @@
             }
 
             for (const origin of propData.origins) {
-              SpawnProp(prefab, origin);
+              SpawnProp(prop, origin);
             }
           }
 
-          function SpawnProp(prefab, origin) {
-            for (const blockData of prefab.blocks) {
-              const offset = blockData.offset ?? [0, 0];
-
-              const row = origin.row + offset[0];
-              const col = origin.col + offset[1];
-
-              const cell = CELLS.grid[row][col];
-
-              const block = CreatePropBlock(blockData, prefab.color ?? "white");
-
-              cell.appendChild(block);
+          function SpawnProp(prop, origin) {
+            for (const blockData of prop.blocks) {
+              const [offY, offX] = blockData.offset ?? [0, 0];
+              const cell = CELLS.grid[origin.row + offY][origin.col + offX];
+              cell.appendChild(CreateBlock(blockData, prop.color ?? "magenta"));
             }
           }
 
-          function CreatePropBlock(blockData, color) {
+          function CreateBlock(blockData, color) {
             const nestingSize = blockData.nestingSize ?? 0;
+            const svg = CreateSvg();
             const style = GetNestingStyle(nestingSize);
+            svg.style.zIndex = nestingSize;
 
+            if (style.fill) {
+              svg.appendChild(CreateRect(0, 0, CELL_SIZE, CELL_SIZE, color));
+            }
+
+            for (const wall of blockData.walls ?? []) {
+              DrawWall(svg, wall, color, style);
+            }
+
+            return svg;
+
+            function GetNestingStyle(nestingSize) {
+              const styles = {
+                0: {
+                  fill: true,
+                  thickness: 0,
+                  inset: 0,
+                },
+
+                1: {
+                  fill: false,
+                  thickness: 10,
+                  inset: 5,
+                },
+
+                2: {
+                  fill: false,
+                  thickness: 7,
+                  inset: 3.5,
+                },
+
+                3: {
+                  fill: false,
+                  thickness: 4,
+                  inset: 2,
+                },
+
+                4: {
+                  fill: false,
+                  thickness: 2,
+                  inset: 1,
+                },
+              };
+
+              return styles[nestingSize];
+            }
+          }
+
+          function CreateRect(x, y, width, height, fill) {
+            const rect = document.createElementNS(
+              "http://www.w3.org/2000/svg",
+              "rect",
+            );
+
+            rect.setAttribute("x", x);
+            rect.setAttribute("y", y);
+            rect.setAttribute("width", width);
+            rect.setAttribute("height", height);
+            rect.setAttribute("fill", fill);
+
+            return rect;
+          }
+
+          function CreateSvg() {
             const svg = document.createElementNS(
               "http://www.w3.org/2000/svg",
               "svg",
@@ -350,68 +391,10 @@
 
             svg.setAttribute("width", CELL_SIZE);
             svg.setAttribute("height", CELL_SIZE);
-
             svg.style.position = "absolute";
-            svg.style.zIndex = nestingSize;
-
-            // Nesting size 0 is a solid object
-            if (style.fill) {
-              const rect = document.createElementNS(
-                "http://www.w3.org/2000/svg",
-                "rect",
-              );
-
-              rect.setAttribute("x", 0);
-              rect.setAttribute("y", 0);
-              rect.setAttribute("width", CELL_SIZE);
-              rect.setAttribute("height", CELL_SIZE);
-              rect.setAttribute("fill", color);
-
-              svg.appendChild(rect);
-            }
-
-            for (const wall of blockData.walls) {
-              DrawWall(svg, wall, color, style);
-            }
 
             return svg;
           }
-        }
-
-        function GetNestingStyle(nestingSize) {
-          const styles = {
-            0: {
-              fill: true,
-              thickness: 0,
-              inset: 0,
-            },
-
-            1: {
-              fill: false,
-              thickness: 10,
-              inset: 5,
-            },
-
-            2: {
-              fill: false,
-              thickness: 7,
-              inset: 3.5,
-            },
-
-            3: {
-              fill: false,
-              thickness: 4,
-              inset: 2,
-            },
-
-            4: {
-              fill: false,
-              thickness: 2,
-              inset: 1,
-            },
-          };
-
-          return styles[nestingSize];
         }
 
         function DrawWall(svg, direction, color, style) {
