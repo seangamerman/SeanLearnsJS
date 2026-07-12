@@ -29,7 +29,6 @@
       }
     </style>
     <script>
-      //Todo: new key input make forget old one
       const CELL_SIZE = 60;
       const BOARD = document.getElementById("board");
       const CELLS = { grid: [], all: [] };
@@ -54,7 +53,7 @@
 
           props: [
             {
-              type: "bowl",
+              type: "cup",
               origins: [
                 { row: 5, col: 4 },
                 { row: 0, col: 3 },
@@ -116,6 +115,7 @@
       ];
       const PROPS = {
         anvil: {
+          name: "anvil",
           color: "gray",
           immovable: true,
           blocks: [
@@ -124,7 +124,8 @@
             },
           ],
         },
-        bowl: {
+        cup: {
+          name: "cup",
           color: "#87CEEB",
           blocks: [
             {
@@ -134,6 +135,7 @@
           ],
         },
         chair: {
+          name: "chair",
           color: "orange",
           blocks: [
             {
@@ -158,6 +160,7 @@
           col: 0,
           keys: ["w", "ArrowUp"],
           type: "cardinal",
+          opposite: "south",
         },
 
         northeast: {
@@ -165,6 +168,7 @@
           col: 1,
           keys: [],
           type: "diagonal",
+          opposite: "southwest",
         },
 
         east: {
@@ -172,6 +176,7 @@
           col: 1,
           keys: ["d", "ArrowRight"],
           type: "cardinal",
+          opposite: "west",
         },
 
         southeast: {
@@ -179,6 +184,7 @@
           col: 1,
           keys: [],
           type: "diagonal",
+          opposite: "northwest",
         },
 
         south: {
@@ -186,6 +192,7 @@
           col: 0,
           keys: ["s", "ArrowDown"],
           type: "cardinal",
+          opposite: "north",
         },
 
         southwest: {
@@ -193,6 +200,7 @@
           col: -1,
           keys: [],
           type: "diagonal",
+          opposite: "northeast",
         },
 
         west: {
@@ -200,6 +208,7 @@
           col: -1,
           keys: ["a", "ArrowLeft"],
           type: "cardinal",
+          opposite: "east",
         },
 
         northwest: {
@@ -207,6 +216,7 @@
           col: -1,
           keys: [],
           type: "diagonal",
+          opposite: "southeast",
         },
       };
       const INPUT = {
@@ -236,8 +246,8 @@
 
         shift: false,
         directionStack: [],
-        holdDelay: 150, //milliseconds before a tap is considered a hold
-        moveDelay: 150, //milliseconds between frames of movement
+        holdDelay: 100, //milliseconds before a tap is considered a hold
+        moveDelay: 100, //milliseconds between frames of movement
       };
       let currentLevel = 0;
 
@@ -288,8 +298,6 @@
                 input.pressed = true;
               }
 
-              //remembers whats being held down if you lift up
-
               const stack = INPUT.directionStack;
               const index = stack.indexOf(direction);
 
@@ -326,39 +334,6 @@
             }
           });
         }
-
-        function CreateListenersOLD() {
-          document.addEventListener("keydown", (event) => {
-            const direction = GetDirectionFromKey(event.key);
-
-            if (direction) {
-              const input = INPUT[direction];
-
-              if (!input.held) {
-                console.log(direction);
-                input.lastPressed = Date.now();
-              }
-
-              input.held = true;
-            }
-
-            if (event.key === "Shift") {
-              INPUT.shift = true;
-            }
-          });
-
-          document.addEventListener("keyup", (event) => {
-            const direction = GetDirectionFromKey(event.key);
-
-            if (direction) {
-              INPUT[direction].held = false;
-            }
-
-            if (event.key === "Shift") {
-              INPUT.shift = false;
-            }
-          });
-        }
       }
 
       function GameLoop() {
@@ -367,11 +342,10 @@
       }
 
       function Update() {
-        CheckForPlayerInput();
+        CheckForInput();
 
-        function CheckForPlayerInput() {
+        function CheckForInput() {
           const now = Date.now();
-
           const direction = INPUT.directionStack.at(-1);
 
           if (!direction) {
@@ -380,93 +354,114 @@
 
           const input = INPUT[direction];
 
-          // Initial press
+          // Key tap
           if (input.pressed) {
             RequestPlayerMove(direction);
             input.pressed = false;
             return;
           }
 
-          // Held repeat
-          const heldTime = now - input.lastPressed;
-
-          if (heldTime >= INPUT.holdDelay) {
-            if (now - input.lastMove >= INPUT.moveDelay) {
-              RequestPlayerMove(direction);
-            }
+          // Key hold
+          if (
+            now - input.lastPressed >= INPUT.holdDelay &&
+            now - input.lastMove >= INPUT.moveDelay
+          ) {
+            RequestPlayerMove(direction);
           }
 
           function RequestPlayerMove(direction) {
-            console.log(
-              DIRECTIONS[direction].keys[0].toUpperCase() + " pressed",
-            );
             INPUT[direction].lastMove = Date.now();
+
             const queuedPlayers = GetPlayerQueue(GAME.player.blocks, direction);
 
-            for (const block of queuedPlayers) {
-              if (!CanPlayerMove(block, direction)) {
-                console.log("blocked!");
-                return;
-              }
-            }
+            let approvedPlayers = [];
 
-            ExecuteMove(queuedPlayers, direction);
-          }
+            queuedPlayers.filter((player) => CanPlayerMove(player, direction));
 
-          function CanPlayerMove(block, direction) {
-            const currentCell = block.cell;
-            const targetCell = currentCell.neighbors[direction];
+            ExecuteMove(approvedPlayers, direction);
 
-            if (!CanExitCell() || !CanEnterCell()) {
-              return false;
-            }
+            function CanPlayerMove(player, direction) {
+              const currentCell = player.cell;
+              const targetCell = currentCell.neighbors[direction];
 
-            return true;
-
-            function CanExitCell() {
-              return true;
-            }
-
-            function CanEnterCell() {
-              if (!targetCell) {
+              if (!CanExitCell() || !CanEnterCell()) {
                 return false;
               }
 
-              // if (!targetCell.contents == []) {
-              //   return false;
-              // }
-
               return true;
+
+              function CanExitCell() {
+                for (const occupant of currentCell.contents) {
+                  if (!approvedPlayers.includes(occupant)) {
+                    if (occupant.type === "prop") {
+                      if (occupant.walls.includes(direction)) {
+                        console.log(`Stuck in a ${occupant.name}`);
+                        return false;
+                      }
+                    }
+                  }
+                }
+                return true;
+              }
+
+              function CanEnterCell() {
+                if (!targetCell) {
+                  return false;
+                }
+
+                for (const occupant of targetCell.contents) {
+                  if (!approvedPlayers.includes(occupant)) {
+                    if (occupant.type === "prop") {
+                      if (
+                        occupant.walls.includes(DIRECTIONS[direction].opposite)
+                      ) {
+                        console.log(`Blocked by ${occupant.name}`);
+                        return false;
+                      }
+                    } else {
+                      return false;
+                    }
+                  }
+                }
+
+                approvedPlayers.push(player);
+                return true;
+              }
             }
-          }
 
-          function ExecuteMove(blocks, direction) {
-            console.log(`Moved ${direction}!`);
-            for (const block of blocks) {
-              const targetCell = block.cell.neighbors[direction];
-              targetCell.appendChild(block.element);
-              block.cell = targetCell;
+            function ExecuteMove(blocks, direction) {
+              for (const block of blocks) {
+                console.log(`${direction}-------------`);
+                const targetCell = block.cell.neighbors[direction];
+                block.cell.contents.splice(
+                  block.cell.contents.indexOf(block),
+                  1,
+                );
+                targetCell.contents.push(block);
+                targetCell.appendChild(block.element);
+                block.cell = targetCell;
+              }
             }
-          }
 
-          function GetPlayerQueue(blocks, direction) {
-            return [...blocks].sort((a, b) => {
-              if (direction === "east") {
-                return b.cell.col - a.cell.col;
-              }
+            function GetPlayerQueue(blocks, direction) {
+              return [...blocks].sort((a, b) => {
+                if (direction === "east") {
+                  return b.cell.col - a.cell.col;
+                }
 
-              if (direction === "west") {
-                return a.cell.col - b.cell.col;
-              }
+                if (direction === "west") {
+                  return a.cell.col - b.cell.col;
+                }
 
-              if (direction === "south") {
-                return b.cell.row - a.cell.row;
-              }
+                if (direction === "south") {
+                  return b.cell.row - a.cell.row;
+                }
 
-              if (direction === "north") {
-                return a.cell.row - b.cell.row;
-              }
-            });
+                if (direction === "north") {
+                  return a.cell.row - b.cell.row;
+                }
+              });
+            }
           }
         }
       }
@@ -575,9 +570,9 @@
 
         function SpawnProps() {
           for (const propData of map.props) {
-            const prop = PROPS[propData.type];
+            const prefab = PROPS[propData.type];
 
-            if (!prop) {
+            if (!prefab) {
               console.error(
                 `Map ${MAPS.indexOf(GAME.currentMap)} "${GAME.currentMap.name}" wants to create an unknown prop "${propData.type}".`,
               );
@@ -585,20 +580,32 @@
             }
 
             for (const origin of propData.origins) {
-              SpawnProp(prop, origin);
+              SpawnProp(prefab, origin);
             }
           }
 
-          function SpawnProp(prop, origin) {
-            for (const blockData of prop.blocks) {
-              const [offY, offX] = blockData.offset ?? [0, 0];
+          function SpawnProp(prefab, origin) {
+            for (const block of prefab.blocks) {
+              const [offY, offX] = block.offset ?? [0, 0];
               const cell = CELLS.grid[origin.row + offY][origin.col + offX];
-              cell.appendChild(CreateBlock(blockData, prop.color ?? "magenta"));
+              const element = RenderBlock(block, prefab.color ?? "magenta");
+
+              const blockInstance = {
+                type: "prop",
+                name: prefab.name,
+                walls: block.walls ?? [],
+                nestingSize: block.nestingSize ?? 0,
+                cell: cell,
+                element: element,
+              };
+
+              cell.appendChild(element);
+              cell.contents.push(blockInstance);
             }
           }
 
-          function CreateBlock(blockData, color) {
-            const nestingSize = blockData.nestingSize ?? 0;
+          function RenderBlock(block, color) {
+            const nestingSize = block.nestingSize ?? 0;
             const svg = CreateSvg();
             const style = GetNestingStyle(nestingSize);
             svg.style.zIndex = nestingSize;
@@ -607,7 +614,7 @@
               svg.appendChild(CreateRect(0, 0, CELL_SIZE, CELL_SIZE, color));
             }
 
-            for (const wall of blockData.walls ?? []) {
+            for (const wall of block.walls ?? []) {
               DrawWall(svg, wall, color, style);
             }
 
@@ -646,7 +653,7 @@
                 },
               };
 
-              return styles[nestingSize];
+              return styles[nestingSize] ?? styles[0];
             }
           }
 
