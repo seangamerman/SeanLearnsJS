@@ -29,6 +29,7 @@
       }
     </style>
     <script>
+      //Todo: new key input make forget old one
       const CELL_SIZE = 60;
       const BOARD = document.getElementById("board");
       const CELLS = { grid: [], all: [] };
@@ -45,9 +46,9 @@
           player: {
             origins: [
               { row: 2, col: 1 },
-              { row: 2, col: 2 },
+              //{ row: 2, col: 2 },
               { row: 2, col: 3 },
-              { row: 5, col: 4 },
+              // { row: 5, col: 4 },
             ],
           },
 
@@ -234,9 +235,9 @@
         },
 
         shift: false,
-
-        holdDelay: 500,
-        moveDelay: 300,
+        directionStack: [],
+        holdDelay: 150, //milliseconds before a tap is considered a hold
+        moveDelay: 150, //milliseconds between frames of movement
       };
       let currentLevel = 0;
 
@@ -246,7 +247,7 @@
         CreateLibraries();
         LoadMap(MAPS[currentLevel]);
         CreateUI();
-        ReceiveInput();
+        CreateListeners();
         GameLoop();
 
         function CreateLibraries() {
@@ -271,39 +272,93 @@
           });
           NEXT_LEVEL_BTN.addEventListener("click", LoadNextMap);
         }
-      }
 
-      function ReceiveInput() {
-        document.addEventListener("keydown", (event) => {
-          const direction = GetDirectionFromKey(event.key);
+        function CreateListeners() {
+          document.addEventListener("keydown", (event) => {
+            const direction = GetDirectionFromKey(event.key);
 
-          if (direction) {
-            const input = INPUT[direction];
+            if (direction) {
+              const input = INPUT[direction];
 
-            if (!input.held) {
-              console.log(direction);
-              input.lastPressed = Date.now();
+              if (!input.held) {
+                const now = Date.now();
+
+                input.lastPressed = now;
+                input.lastMove = now;
+                input.pressed = true;
+              }
+
+              //remembers whats being held down if you lift up
+
+              const stack = INPUT.directionStack;
+              const index = stack.indexOf(direction);
+
+              if (index != -1) {
+                stack.splice(index, 1);
+              }
+
+              stack.push(direction);
+
+              input.held = true;
             }
 
-            input.held = true;
-          }
+            if (event.key === "Shift") {
+              INPUT.shift = true;
+            }
+          });
 
-          if (event.key === "Shift") {
-            INPUT.shift = true;
-          }
-        });
+          document.addEventListener("keyup", (event) => {
+            const direction = GetDirectionFromKey(event.key);
 
-        document.addEventListener("keyup", (event) => {
-          const direction = GetDirectionFromKey(event.key);
+            if (direction) {
+              INPUT[direction].held = false;
 
-          if (direction) {
-            INPUT[direction].held = false;
-          }
+              const stack = INPUT.directionStack;
+              const index = stack.indexOf(direction);
 
-          if (event.key === "Shift") {
-            INPUT.shift = false;
-          }
-        });
+              if (index !== -1) {
+                stack.splice(index, 1);
+              }
+            }
+
+            if (event.key === "Shift") {
+              INPUT.shift = false;
+            }
+          });
+        }
+
+        function CreateListenersOLD() {
+          document.addEventListener("keydown", (event) => {
+            const direction = GetDirectionFromKey(event.key);
+
+            if (direction) {
+              const input = INPUT[direction];
+
+              if (!input.held) {
+                console.log(direction);
+                input.lastPressed = Date.now();
+              }
+
+              input.held = true;
+            }
+
+            if (event.key === "Shift") {
+              INPUT.shift = true;
+            }
+          });
+
+          document.addEventListener("keyup", (event) => {
+            const direction = GetDirectionFromKey(event.key);
+
+            if (direction) {
+              INPUT[direction].held = false;
+            }
+
+            if (event.key === "Shift") {
+              INPUT.shift = false;
+            }
+          });
+        }
       }
 
       function GameLoop() {
@@ -317,72 +372,81 @@
         function CheckForPlayerInput() {
           const now = Date.now();
 
-          for (const direction of DIRECTIONS.cardinal) {
-            const input = INPUT[direction];
+          const direction = INPUT.directionStack.at(-1);
 
-            if (!input.held) {
-              continue;
-            }
+          if (!direction) {
+            return;
+          }
 
-            const heldTime = now - input.lastPressed;
+          const input = INPUT[direction];
 
-            if (heldTime >= INPUT.holdDelay) {
-              if (now - input.lastMove >= INPUT.moveDelay) {
-                RequestPlayerMovement(direction);
-                input.lastMove = now;
-              }
+          // Initial press
+          if (input.pressed) {
+            RequestPlayerMove(direction);
+            input.pressed = false;
+            return;
+          }
+
+          // Held repeat
+          const heldTime = now - input.lastPressed;
+
+          if (heldTime >= INPUT.holdDelay) {
+            if (now - input.lastMove >= INPUT.moveDelay) {
+              RequestPlayerMove(direction);
             }
           }
 
-          function RequestPlayerMovement(direction) {
-            console.log("GAME:", GAME);
-            console.log("player:", GAME.player);
-            console.log(GAME.player.blocks);
+          function RequestPlayerMove(direction) {
+            console.log(
+              DIRECTIONS[direction].keys[0].toUpperCase() + " pressed",
+            );
+            INPUT[direction].lastMove = Date.now();
             const queuedPlayers = GetPlayerQueue(GAME.player.blocks, direction);
 
             for (const block of queuedPlayers) {
-              if (!CanPlayerBlockMove(block, direction)) {
+              if (!CanPlayerMove(block, direction)) {
+                console.log("blocked!");
                 return;
               }
             }
 
-            MoveExecutor(queuedPlayers, direction);
+            ExecuteMove(queuedPlayers, direction);
           }
 
-          function CanPlayerBlockMove(block, direction) {
+          function CanPlayerMove(block, direction) {
             const currentCell = block.cell;
-
-            if (!CanLeaveCell(block, currentCell, direction)) {
-              return false;
-            }
-
             const targetCell = currentCell.neighbors[direction];
 
-            if (!CanEnterCell(block, targetCell)) {
+            if (!CanExitCell() || !CanEnterCell()) {
               return false;
             }
 
             return true;
-          }
 
-          function CanLeaveCell(block, cell, direction) {
-            return true;
-          }
-
-          function CanEnterCell(block, cell) {
-            if (!cell) {
-              return false;
+            function CanExitCell() {
+              return true;
             }
 
-            if (cell.occupant) {
-              return false;
-            }
+            function CanEnterCell() {
+              if (!targetCell) {
+                return false;
+              }
 
-            return true;
+              // if (!targetCell.contents == []) {
+              //   return false;
+              // }
+
+              return true;
+            }
           }
 
-          function MoveExecutor(blocks, direction) {
-            console.log("Moving player", direction, blocks);
+          function ExecuteMove(blocks, direction) {
+            console.log(`Moved ${direction}!`);
+            for (const block of blocks) {
+              const targetCell = block.cell.neighbors[direction];
+              targetCell.appendChild(block.element);
+              block.cell = targetCell;
+            }
           }
 
           function GetPlayerQueue(blocks, direction) {
@@ -417,7 +481,7 @@
       function LoadMap(map) {
         GAME.currentMap = map;
         ClearMap();
-        CreateAllCells();
+        CreateCells();
         ConnectAllNeighbors();
         SpawnPlayer();
         SpawnProps();
@@ -428,7 +492,7 @@
           CELLS.all = [];
         }
 
-        function CreateAllCells() {
+        function CreateCells() {
           BOARD.style.gridTemplateRows = `repeat(${map.rowCount}, ${CELL_SIZE}px)`;
           BOARD.style.gridTemplateColumns = `repeat(${map.colCount}, ${CELL_SIZE}px)`;
 
@@ -439,6 +503,7 @@
 
               cell.col = col;
               cell.row = row;
+              cell.contents = [];
 
               BOARD.appendChild(cell);
 
@@ -497,10 +562,14 @@
             playerBlock.style.zIndex = 0;
 
             cell.appendChild(playerBlock);
-            GAME.player.blocks.push({
+
+            const block = {
               cell,
               element: playerBlock,
-            });
+            };
+
+            cell.contents.push(block);
+            GAME.player.blocks.push(block);
           }
         }
 
