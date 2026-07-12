@@ -5,8 +5,458 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Sean Learns JS 3</title>
   </head>
-  <body>
+  <body style="background-color: black">
     <a href="day2.html" rel="noopener noreferrer">Prev</a>
     <span>| July 11, 2026 | Next</span>
+    <button id="reloadLevelBtn">Reload</button>
+    <button id="nextLevelBtn">Next</button>
+    <div id="board" style="display: grid" ;></div>
+    <style>
+      button {
+        color: gray;
+        border: 1px solid gray;
+        background: transparent;
+      }
+
+      button:hover {
+        color: rgb(173, 173, 173);
+        border-color: rgb(173, 173, 173);
+      }
+
+      button:active {
+        color: black;
+        background: gray;
+      }
+    </style>
+    <script>
+      const CELL_SIZE = 60;
+      const BOARD = document.getElementById("board");
+      const CELLS = { grid: [], all: [] };
+      const GAME = {
+        currentMap: null,
+        running: true,
+      };
+      const MAPS = [
+        {
+          name: "Start Map",
+          rowCount: 8,
+          colCount: 12,
+
+          player: {
+            origins: [
+              { row: 2, col: 1 },
+              { row: 2, col: 2 },
+              { row: 2, col: 3 },
+              { row: 5, col: 4 },
+            ],
+          },
+
+          props: [
+            {
+              type: "bowl",
+              origins: [
+                { row: 5, col: 4 },
+                { row: 0, col: 3 },
+                { row: 5, col: 8 },
+              ],
+            },
+
+            {
+              type: "anvil",
+              origins: [
+                { row: 1, col: 1 },
+                { row: 1, col: 2 },
+                { row: 1, col: 3 },
+                { row: 6, col: 3 },
+                { row: 6, col: 4 },
+                { row: 6, col: 5 },
+                { row: 6, col: 6 },
+                { row: 6, col: 7 },
+                { row: 6, col: 8 },
+                { row: 6, col: 9 },
+                { row: 7, col: 1 },
+                { row: 7, col: 2 },
+                { row: 7, col: 3 },
+                { row: 7, col: 4 },
+                { row: 7, col: 5 },
+              ],
+            },
+
+            {
+              type: "chair",
+              origins: [{ row: 4, col: 4 }],
+            },
+          ],
+        },
+
+        {
+          name: "Second Map",
+          rowCount: 10,
+          colCount: 6,
+
+          player: {
+            origins: [{ row: 1, col: 1 }],
+          },
+
+          props: [],
+        },
+
+        {
+          name: "Third Map",
+          rowCount: 3,
+          colCount: 4,
+
+          player: {
+            origins: [{ row: 1, col: 1 }],
+          },
+
+          props: [],
+        },
+      ];
+      const PROPS = {
+        anvil: {
+          color: "gray",
+          immovable: true,
+          blocks: [
+            {
+              walls: ["n", "e", "s", "w"],
+            },
+          ],
+        },
+        bowl: {
+          color: "#87CEEB",
+          blocks: [
+            {
+              nestingSize: 1,
+              walls: ["e", "s", "w"],
+            },
+          ],
+        },
+        chair: {
+          color: "orange",
+          blocks: [
+            {
+              walls: ["n", "e", "s", "w"],
+            },
+            {
+              nestingSize: 2,
+              offset: [1, 0],
+              walls: ["n", "w"],
+            },
+            {
+              nestingSize: 2,
+              offset: [1, 1],
+              walls: ["n", "e"],
+            },
+          ],
+        },
+      };
+
+      let currentLevel = 0;
+
+      LoadGame();
+      GameLoop();
+
+      function LoadGame() {
+        LoadMap(MAPS[currentLevel]);
+        CreateUI();
+
+        function CreateUI() {
+          const RELOAD_LEVEL_BTN = document.getElementById("reloadLevelBtn");
+          const NEXT_LEVEL_BTN = document.getElementById("nextLevelBtn");
+          RELOAD_LEVEL_BTN.addEventListener("click", function () {
+            LoadMap(GAME.currentMap);
+          });
+          NEXT_LEVEL_BTN.addEventListener("click", LoadNextMap);
+        }
+      }
+
+      function GameLoop() {
+        Update();
+        requestAnimationFrame(GameLoop);
+      }
+
+      function Update() {
+        // Input
+        // Physics
+      }
+
+      function LoadNextMap() {
+        const currentIndex = MAPS.indexOf(GAME.currentMap);
+        const nextIndex = (currentIndex + 1) % MAPS.length;
+
+        LoadMap(MAPS[nextIndex]);
+      }
+
+      function LoadMap(map) {
+        GAME.currentMap = map;
+        ClearMap();
+        CreateAllCells();
+        ConnectAllNeighbors();
+        SpawnPlayer();
+        SpawnProps();
+
+        function ClearMap() {
+          BOARD.innerHTML = "";
+          CELLS.grid = [];
+          CELLS.all = [];
+        }
+
+        function CreateAllCells() {
+          BOARD.style.gridTemplateRows = `repeat(${map.rowCount}, ${CELL_SIZE}px)`;
+          BOARD.style.gridTemplateColumns = `repeat(${map.colCount}, ${CELL_SIZE}px)`;
+
+          for (let row = 0; row < map.rowCount; row++) {
+            CELLS.grid[row] = [];
+            for (let col = 0; col < map.colCount; col++) {
+              const cell = document.createElement("div");
+
+              cell.col = col;
+              cell.row = row;
+
+              BOARD.appendChild(cell);
+
+              cell.style.background = "black";
+              cell.style.border = "1px solid #333333";
+              cell.style.position = "relative";
+
+              CELLS.grid[row][col] = cell;
+              CELLS.all.push(cell);
+
+              cell.name = `[${col},${row}]`;
+            }
+          }
+        }
+
+        function ConnectAllNeighbors() {
+          for (const cell of CELLS.all) {
+            ConnectNeighbors(cell);
+          }
+
+          function ConnectNeighbors(cell) {
+            const r = cell.row;
+            const c = cell.col;
+            const g = CELLS.grid;
+
+            // Locate directional neighbors
+            const n = r > 0 ? g[r - 1][c] : null;
+            const ne = r > 0 && c < map.colCount - 1 ? g[r - 1][c + 1] : null;
+            const e = c < map.colCount - 1 ? g[r][c + 1] : null;
+            const se =
+              r < map.rowCount - 1 && c < map.colCount - 1
+                ? g[r + 1][c + 1]
+                : null;
+            const s = r < map.rowCount - 1 ? g[r + 1][c] : null;
+            const sw = r < map.rowCount - 1 && c > 0 ? g[r + 1][c - 1] : null;
+            const w = c > 0 ? g[r][c - 1] : null;
+            const nw = r > 0 && c > 0 ? g[r - 1][c - 1] : null;
+
+            const all = [n, ne, e, se, s, sw, w, nw];
+            const cardinal = [n, e, s, w];
+            const diagonal = [ne, se, sw, nw];
+
+            cell.neighbors = {
+              n,
+              ne,
+              e,
+              se,
+              s,
+              sw,
+              w,
+              nw,
+
+              all,
+              real: all.filter(Boolean),
+
+              cardinal,
+              cardinalReal: cardinal.filter(Boolean),
+
+              diagonal,
+              diagonalReal: diagonal.filter(Boolean),
+            };
+          }
+        }
+
+        function SpawnPlayer() {
+          for (const origin of map.player.origins) {
+            const cell = CELLS.grid[origin.row][origin.col];
+
+            const svg = document.createElementNS(
+              "http://www.w3.org/2000/svg",
+              "svg",
+            );
+
+            svg.setAttribute("width", CELL_SIZE);
+            svg.setAttribute("height", CELL_SIZE);
+
+            svg.style.position = "absolute";
+            svg.style.zIndex = 0;
+
+            const rect = document.createElementNS(
+              "http://www.w3.org/2000/svg",
+              "rect",
+            );
+
+            rect.setAttribute("x", 0);
+            rect.setAttribute("y", 0);
+            rect.setAttribute("width", CELL_SIZE);
+            rect.setAttribute("height", CELL_SIZE);
+            rect.setAttribute("fill", "limegreen");
+
+            svg.appendChild(rect);
+            cell.appendChild(svg);
+          }
+        }
+
+        function SpawnProps() {
+          for (const propData of map.props) {
+            const prefab = PROPS[propData.type];
+
+            if (!prefab) {
+              console.error(
+                `Map ${MAPS.indexOf(GAME.currentMap)} "${GAME.currentMap.name}" wants to create an unknown prop "${propData.type}".`,
+              );
+              continue;
+            }
+
+            for (const origin of propData.origins) {
+              SpawnProp(prefab, origin);
+            }
+          }
+
+          function SpawnProp(prefab, origin) {
+            for (const blockData of prefab.blocks) {
+              const offset = blockData.offset ?? [0, 0];
+
+              const row = origin.row + offset[0];
+              const col = origin.col + offset[1];
+
+              const cell = CELLS.grid[row][col];
+
+              const block = CreatePropBlock(blockData, prefab.color ?? "white");
+
+              cell.appendChild(block);
+            }
+          }
+
+          function CreatePropBlock(blockData, color) {
+            const nestingSize = blockData.nestingSize ?? 0;
+            const style = GetNestingStyle(nestingSize);
+
+            const svg = document.createElementNS(
+              "http://www.w3.org/2000/svg",
+              "svg",
+            );
+
+            svg.setAttribute("width", CELL_SIZE);
+            svg.setAttribute("height", CELL_SIZE);
+
+            svg.style.position = "absolute";
+            svg.style.zIndex = nestingSize;
+
+            // Nesting size 0 is a solid object
+            if (style.fill) {
+              const rect = document.createElementNS(
+                "http://www.w3.org/2000/svg",
+                "rect",
+              );
+
+              rect.setAttribute("x", 0);
+              rect.setAttribute("y", 0);
+              rect.setAttribute("width", CELL_SIZE);
+              rect.setAttribute("height", CELL_SIZE);
+              rect.setAttribute("fill", color);
+
+              svg.appendChild(rect);
+            }
+
+            for (const wall of blockData.walls) {
+              DrawWall(svg, wall, color, style);
+            }
+
+            return svg;
+          }
+        }
+
+        function GetNestingStyle(nestingSize) {
+          const styles = {
+            0: {
+              fill: true,
+              thickness: 0,
+              inset: 0,
+            },
+
+            1: {
+              fill: false,
+              thickness: 10,
+              inset: 5,
+            },
+
+            2: {
+              fill: false,
+              thickness: 7,
+              inset: 3.5,
+            },
+
+            3: {
+              fill: false,
+              thickness: 4,
+              inset: 2,
+            },
+
+            4: {
+              fill: false,
+              thickness: 2,
+              inset: 1,
+            },
+          };
+
+          return styles[nestingSize];
+        }
+
+        function DrawWall(svg, direction, color, style) {
+          const line = document.createElementNS(
+            "http://www.w3.org/2000/svg",
+            "line",
+          );
+
+          const MIN = style.inset;
+          const MAX = CELL_SIZE - style.inset;
+
+          if (direction === "n") {
+            line.setAttribute("x1", MIN);
+            line.setAttribute("y1", MIN);
+            line.setAttribute("x2", MAX);
+            line.setAttribute("y2", MIN);
+          }
+
+          if (direction === "s") {
+            line.setAttribute("x1", MIN);
+            line.setAttribute("y1", MAX);
+            line.setAttribute("x2", MAX);
+            line.setAttribute("y2", MAX);
+          }
+
+          if (direction === "w") {
+            line.setAttribute("x1", MIN);
+            line.setAttribute("y1", MIN);
+            line.setAttribute("x2", MIN);
+            line.setAttribute("y2", MAX);
+          }
+
+          if (direction === "e") {
+            line.setAttribute("x1", MAX);
+            line.setAttribute("y1", MIN);
+            line.setAttribute("x2", MAX);
+            line.setAttribute("y2", MAX);
+          }
+
+          line.setAttribute("stroke", color);
+          line.setAttribute("stroke-width", style.thickness);
+
+          svg.appendChild(line);
+        }
+      }
+    </script>
   </body>
 </html>
