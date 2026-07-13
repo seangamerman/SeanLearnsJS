@@ -38,55 +38,29 @@
         entities: [],
       };
       const MAPS = [
-        // {
-        //   name: "Nesting Size Test Map",
-        //   rowCount: 10,
-        //   colCount: 12,
-
-        //   entities: [
-        //     {
-        //       type: "slime",
-        //       origins: [{ row: 4, col: 1 }],
-        //     },
-        //     {
-        //       type: "cup",
-        //       origins: [{ row: 4, col: 1 }],
-        //     },
-        //     {
-        //       type: "bucket",
-        //       origins: [{ row: 4, col: 1 }],
-        //     },
-        //   ],
-        // },
-
         {
           name: "Start Map",
-          rowCount: 8,
+          rowCount: 9,
           colCount: 12,
 
           entities: [
             {
               type: "slime",
               origins: [
-                { row: 3, col: 5 },
-                // { row: 2, col: 2 },
-                // { row: 2, col: 3 },
-                // { row: 5, col: 4 },
+                { row: 4, col: 6 },
+                { row: 4, col: 5 },
+                { row: 5, col: 5 },
+                { row: 5, col: 6 },
               ],
             },
             {
               type: "cup",
-              origins: [
-                { row: 5, col: 4 },
-                { row: 0, col: 3 },
-                { row: 5, col: 8 },
-              ],
+              origins: [{ row: 3, col: 7 }],
             },
             {
               type: "bucket",
               origins: [
-                { row: 5, col: 5 },
-                { row: 0, col: 4 },
+                { row: 3, col: 8 },
                 { row: 5, col: 9 },
               ],
             },
@@ -94,15 +68,24 @@
             {
               type: "box",
               origins: [
-                { row: 1, col: 1 },
-                { row: 1, col: 2 },
-                { row: 1, col: 3 },
-                { row: 6, col: 3 },
+                { row: 4, col: 7 },
+                { row: 4, col: 8 },
+                { row: 5, col: 7 },
               ],
             },
             {
-              type: "anvil",
+              type: "ground",
               origins: [
+                { row: 0, col: 11 },
+                { row: 1, col: 10 },
+                { row: 0, col: 6 },
+                { row: 0, col: 5 },
+                { row: 1, col: 0 },
+                { row: 2, col: 0 },
+                { row: 2, col: 1 },
+                { row: 3, col: 0 },
+                { row: 6, col: 1 },
+                { row: 6, col: 2 },
                 { row: 6, col: 4 },
                 { row: 6, col: 5 },
                 { row: 6, col: 6 },
@@ -119,7 +102,7 @@
 
             {
               type: "chair",
-              origins: [{ row: 3, col: 4 }],
+              origins: [{ row: 4, col: 2 }],
             },
           ],
         },
@@ -169,8 +152,8 @@
             },
           ],
         },
-        anvil: {
-          name: "anvil",
+        ground: {
+          name: "ground",
           color: "gray",
           movement: "fixed",
           blocks: [
@@ -485,12 +468,6 @@
                 direction,
               );
 
-              console.log(
-                "Trying to move:",
-                player.entity.prefab.name,
-                proposedMovementGroup.map((block) => block.entity.prefab.name),
-              );
-
               let allCanMove = true;
 
               for (const block of proposedMovementGroup) {
@@ -526,9 +503,6 @@
 
                       if (cellmate.walls.includes(direction)) {
                         //Cellmate has a wall blocking my exit
-                        console.log(
-                          `${cellmate.entity.prefab.name} is coming with ${block.entity.prefab.name}`,
-                        );
                         AddToGroup(cellmate);
                       }
                     } else if (cellmate.nestingSize < block.nestingSize) {
@@ -537,10 +511,7 @@
                       if (
                         block.walls.includes(DIRECTIONS[direction].opposite)
                       ) {
-                        //Cellmate is trapped inside me
-                        console.log(
-                          `${cellmate.entity.prefab.name} added because ${block.entity.prefab.name} has a ${DIRECTIONS[direction].opposite} wall`,
-                        );
+                        //Cellmate added because block has a back wall trapping them
                         AddToGroup(cellmate);
                       }
                     } else {
@@ -565,19 +536,6 @@
 
                       if (!block.walls.includes(direction)) {
                         //Block is open to nest around obstacle
-                        // console.log(
-                        //   `${block.entity.prefab.name} is open to receive ${obstacle.entity.prefab.name} because it has no ${[direction]} wall`,
-                        // );
-                        console.log("just a test");
-                        console.log(
-                          `${block.entity.prefab.name} block at [${block.cell.col}, ${block.cell.row}]`,
-                          {
-                            walls: block.walls,
-                            nestingSize: block.nestingSize,
-                            direction,
-                          },
-                        );
-                        console.log("just another test");
                         continue;
                       } else {
                         AddToGroup(obstacle);
@@ -624,7 +582,6 @@
 
               function ExecuteMove(blocks, direction) {
                 for (const block of blocks) {
-                  console.log(`${direction}-------------`);
                   const targetCell = block.cell.neighbors[direction];
                   block.cell.contents.splice(
                     block.cell.contents.indexOf(block),
@@ -725,7 +682,7 @@
 
             if (!prefab) {
               console.error(
-                `Map ${MAPS.indexOf(GAME.currentMap)} "${GAME.currentMap.name}" wants to create an unknown prop "${propData.type}".`,
+                `Map ${MAPS.indexOf(GAME.currentMap)} "${GAME.currentMap.name}" contains unknown prop "${propData.type}".`,
               );
               continue;
             }
@@ -747,10 +704,6 @@
               blocks: [],
 
               canMove(direction) {
-                console.log(
-                  `Checking if ${this.prefab.name} can move ${direction}.`,
-                );
-
                 if (this.prefab.movement === "fixed") {
                   return false;
                 }
