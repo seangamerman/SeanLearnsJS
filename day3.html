@@ -35,6 +35,7 @@
       const GAME = {
         currentMap: null,
         running: true,
+        entities: [],
       };
       const MAPS = [
         {
@@ -42,16 +43,16 @@
           rowCount: 8,
           colCount: 12,
 
-          player: {
-            origins: [
-              { row: 2, col: 1 },
-              //{ row: 2, col: 2 },
-              { row: 2, col: 3 },
-              // { row: 5, col: 4 },
-            ],
-          },
-
-          props: [
+          entities: [
+            {
+              type: "slime",
+              origins: [
+                { row: 2, col: 1 },
+                { row: 2, col: 2 },
+                { row: 2, col: 3 },
+                { row: 5, col: 4 },
+              ],
+            },
             {
               type: "cup",
               origins: [
@@ -59,6 +60,10 @@
                 { row: 0, col: 3 },
                 { row: 5, col: 8 },
               ],
+            },
+            {
+              type: "bucket",
+              origins: [{ row: 5, col: 9 }],
             },
 
             {
@@ -94,11 +99,16 @@
           rowCount: 10,
           colCount: 6,
 
-          player: {
-            origins: [{ row: 1, col: 1 }],
-          },
-
-          props: [],
+          entities: [
+            {
+              type: "slime",
+              origins: [{ row: 1, col: 1 }],
+            },
+            {
+              type: "cup",
+              origins: [{ row: 1, col: 2 }],
+            },
+          ],
         },
 
         {
@@ -106,18 +116,33 @@
           rowCount: 3,
           colCount: 4,
 
-          player: {
-            origins: [{ row: 1, col: 1 }],
-          },
-
-          props: [],
+          entities: [
+            {
+              type: "slime",
+              origins: [{ row: 1, col: 1 }],
+            },
+            {
+              type: "anvil",
+              origins: [{ row: 1, col: 2 }],
+            },
+          ],
         },
       ];
-      const PROPS = {
+      const PREFABS = {
+        slime: {
+          name: "slime",
+          color: "limegreen",
+          movement: "playable",
+          blocks: [
+            {
+              walls: ["north", "east", "south", "west"],
+            },
+          ],
+        },
         anvil: {
           name: "anvil",
           color: "gray",
-          immovable: true,
+          movement: "fixed",
           blocks: [
             {
               walls: ["north", "east", "south", "west"],
@@ -127,6 +152,7 @@
         cup: {
           name: "cup",
           color: "#87CEEB",
+          movement: "pushable",
           blocks: [
             {
               nestingSize: 1,
@@ -134,9 +160,21 @@
             },
           ],
         },
+        bucket: {
+          name: "bucket",
+          color: "purple",
+          movement: "fixed",
+          blocks: [
+            {
+              nestingSize: 2,
+              walls: ["north", "east", "south"],
+            },
+          ],
+        },
         chair: {
           name: "chair",
           color: "orange",
+          movement: "pushable",
           blocks: [
             {
               walls: ["north", "east", "south", "west"],
@@ -369,99 +407,141 @@
             RequestPlayerMove(direction);
           }
 
+          function GetBlockQueue(blocks, direction) {
+            return [...blocks].sort((a, b) => {
+              if (direction === "east") {
+                return b.cell.col - a.cell.col;
+              }
+
+              if (direction === "west") {
+                return a.cell.col - b.cell.col;
+              }
+
+              if (direction === "south") {
+                return b.cell.row - a.cell.row;
+              }
+
+              if (direction === "north") {
+                return a.cell.row - b.cell.row;
+              }
+            });
+          }
+
           function RequestPlayerMove(direction) {
             INPUT[direction].lastMove = Date.now();
 
-            const queuedPlayers = GetPlayerQueue(GAME.player.blocks, direction);
+            const playerBlocks = GAME.players.flatMap(
+              (player) => player.blocks,
+            );
 
-            let approvedPlayers = [];
+            const playerQueue = GetBlockQueue(playerBlocks, direction);
 
-            queuedPlayers.filter((player) => CanPlayerMove(player, direction));
+            let grandFinalProposedMovementGroup = [];
 
-            ExecuteMove(approvedPlayers, direction);
+            for (const player of playerQueue) {
+              let proposedMovementGroup = GetProposedMovementGroup(
+                player,
+                direction,
+              );
 
-            function CanPlayerMove(player, direction) {
-              const currentCell = player.cell;
-              const targetCell = currentCell.neighbors[direction];
+              console.log(
+                "Trying to move:",
+                player.entity.prefab.name,
+                proposedMovementGroup.map((block) => block.entity.prefab.name),
+              );
 
-              if (!CanExitCell() || !CanEnterCell()) {
-                return false;
+              let allCanMove = true;
+
+              for (const block of proposedMovementGroup) {
+                if (!CanMove(block, direction)) {
+                  allCanMove = false;
+                  break;
+                }
+              }
+              if (allCanMove) {
+                grandFinalProposedMovementGroup.push(...proposedMovementGroup);
               }
 
-              return true;
+              function GetProposedMovementGroup(player, direction) {
+                const group = [];
 
-              function CanExitCell() {
-                for (const occupant of currentCell.contents) {
-                  if (!approvedPlayers.includes(occupant)) {
-                    if (occupant.type === "prop") {
-                      if (occupant.walls.includes(direction)) {
-                        console.log(`Stuck in a ${occupant.name}`);
-                        return false;
-                      }
+                AddToGroup(player);
+
+                return group;
+
+                function AddToGroup(block) {
+                  if (group.includes(block)) {
+                    return;
+                  }
+                  group.push(block);
+                  const cellmates = [...block.cell.contents].sort(
+                    (a, b) => a.nestingSize - b.nestingSize,
+                  );
+
+                  for (const cellmate of cellmates) {
+                    if (cellmate.walls.includes(direction)) {
+                      AddToGroup(cellmate);
+                    }
+                  }
+
+                  const targetCell = block.cell.neighbors[direction];
+                  if (!targetCell) {
+                    return;
+                  }
+
+                  const obstacles = [...targetCell.contents].sort(
+                    (b, a) => a.nestingSize - b.nestingSize,
+                  );
+
+                  for (const obstacle of obstacles) {
+                    if (
+                      obstacle.walls.includes(DIRECTIONS[direction].opposite)
+                    ) {
+                      AddToGroup(obstacle);
+                    }
+                  }
+
+                  for (const sibling of block.entity.blocks) {
+                    if (!group.includes(sibling)) {
+                      AddToGroup(sibling);
                     }
                   }
                 }
-                return true;
               }
 
-              function CanEnterCell() {
+              function CanMove(block, direction) {
+                const targetCell = block.cell.neighbors[direction];
+
                 if (!targetCell) {
                   return false;
                 }
 
-                for (const occupant of targetCell.contents) {
-                  if (!approvedPlayers.includes(occupant)) {
-                    if (occupant.type === "prop") {
-                      if (
-                        occupant.walls.includes(DIRECTIONS[direction].opposite)
-                      ) {
-                        console.log(`Blocked by ${occupant.name}`);
-                        return false;
-                      }
-                    } else {
-                      return false;
-                    }
-                  }
-                }
+                console.log(
+                  `Checking ${block.entity.prefab.name} moving ${direction}`,
+                );
 
-                approvedPlayers.push(player);
                 return true;
               }
-            }
 
-            function ExecuteMove(blocks, direction) {
-              for (const block of blocks) {
-                console.log(`${direction}-------------`);
-                const targetCell = block.cell.neighbors[direction];
-                block.cell.contents.splice(
-                  block.cell.contents.indexOf(block),
-                  1,
-                );
-                targetCell.contents.push(block);
-                targetCell.appendChild(block.element);
-                block.cell = targetCell;
+              function ExecuteMove(blocks, direction) {
+                for (const block of blocks) {
+                  console.log(`${direction}-------------`);
+                  const targetCell = block.cell.neighbors[direction];
+                  block.cell.contents.splice(
+                    block.cell.contents.indexOf(block),
+                    1,
+                  );
+                  targetCell.contents.push(block);
+                  targetCell.appendChild(block.blockDiv);
+                  block.cell = targetCell;
+                }
               }
             }
 
-            function GetPlayerQueue(blocks, direction) {
-              return [...blocks].sort((a, b) => {
-                if (direction === "east") {
-                  return b.cell.col - a.cell.col;
-                }
-
-                if (direction === "west") {
-                  return a.cell.col - b.cell.col;
-                }
-
-                if (direction === "south") {
-                  return b.cell.row - a.cell.row;
-                }
-
-                if (direction === "north") {
-                  return a.cell.row - b.cell.row;
-                }
-              });
-            }
+            grandFinalProposedMovementGroup = [
+              ...new Set(grandFinalProposedMovementGroup),
+            ];
+            ExecuteMove(grandFinalProposedMovementGroup, direction);
           }
         }
       }
@@ -478,13 +558,13 @@
         ClearMap();
         CreateCells();
         ConnectAllNeighbors();
-        SpawnPlayer();
-        SpawnProps();
+        SpawnEntities();
 
         function ClearMap() {
           BOARD.innerHTML = "";
           CELLS.grid = [];
           CELLS.all = [];
+          GAME.entities = [];
         }
 
         function CreateCells() {
@@ -542,35 +622,9 @@
           }
         }
 
-        function SpawnPlayer() {
-          GAME.player = {
-            blocks: [],
-          };
-
-          for (const origin of map.player.origins) {
-            const cell = CELLS.grid[origin.row][origin.col];
-            const playerBlock = document.createElement("div");
-
-            playerBlock.style.position = "absolute";
-            playerBlock.style.inset = "0";
-            playerBlock.style.background = "limegreen";
-            playerBlock.style.zIndex = 0;
-
-            cell.appendChild(playerBlock);
-
-            const block = {
-              cell,
-              element: playerBlock,
-            };
-
-            cell.contents.push(block);
-            GAME.player.blocks.push(block);
-          }
-        }
-
-        function SpawnProps() {
-          for (const propData of map.props) {
-            const prefab = PROPS[propData.type];
+        function SpawnEntities() {
+          for (const prefabData of map.entities) {
+            const prefab = PREFABS[prefabData.type];
 
             if (!prefab) {
               console.error(
@@ -578,29 +632,54 @@
               );
               continue;
             }
-
-            for (const origin of propData.origins) {
-              SpawnProp(prefab, origin);
+            for (const origin of prefabData.origins) {
+              SpawnEntity(prefab, origin);
             }
           }
 
-          function SpawnProp(prefab, origin) {
+          GAME.players = GAME.entities.filter(
+            (entity) => entity.prefab.movement === "playable",
+          );
+
+          function SpawnEntity(prefab, origin) {
+            const entity = {
+              id: GAME.entities.length,
+
+              prefab,
+
+              blocks: [],
+
+              canMove(direction) {
+                console.log(
+                  `Checking if ${this.prefab.name} can move ${direction}.`,
+                );
+
+                if (this.prefab.movement === "fixed") {
+                  return false;
+                }
+                return true;
+              },
+            };
+
+            GAME.entities.push(entity);
+
             for (const block of prefab.blocks) {
               const [offY, offX] = block.offset ?? [0, 0];
               const cell = CELLS.grid[origin.row + offY][origin.col + offX];
-              const element = RenderBlock(block, prefab.color ?? "magenta");
+              const blockDiv = RenderBlock(block, prefab.color ?? "magenta");
 
-              const blockInstance = {
-                type: "prop",
-                name: prefab.name,
+              const blockGameObject = {
+                type: "block",
+                entity,
                 walls: block.walls ?? [],
                 nestingSize: block.nestingSize ?? 0,
-                cell: cell,
-                element: element,
+                cell,
+                blockDiv,
               };
 
-              cell.appendChild(element);
-              cell.contents.push(blockInstance);
+              entity.blocks.push(blockGameObject);
+              cell.contents.push(blockGameObject);
+              cell.appendChild(blockDiv);
             }
           }
 
