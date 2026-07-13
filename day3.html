@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Sean Learns JS 3</title>
+    <title>SlimeGame</title>
   </head>
   <body style="background-color: black">
     <a href="day2.html" rel="noopener noreferrer">Prev</a>
@@ -38,6 +38,27 @@
         entities: [],
       };
       const MAPS = [
+        // {
+        //   name: "Nesting Size Test Map",
+        //   rowCount: 10,
+        //   colCount: 12,
+
+        //   entities: [
+        //     {
+        //       type: "slime",
+        //       origins: [{ row: 4, col: 1 }],
+        //     },
+        //     {
+        //       type: "cup",
+        //       origins: [{ row: 4, col: 1 }],
+        //     },
+        //     {
+        //       type: "bucket",
+        //       origins: [{ row: 4, col: 1 }],
+        //     },
+        //   ],
+        // },
+
         {
           name: "Start Map",
           rowCount: 8,
@@ -47,10 +68,10 @@
             {
               type: "slime",
               origins: [
-                { row: 2, col: 1 },
-                { row: 2, col: 2 },
-                { row: 2, col: 3 },
-                { row: 5, col: 4 },
+                { row: 3, col: 5 },
+                // { row: 2, col: 2 },
+                // { row: 2, col: 3 },
+                // { row: 5, col: 4 },
               ],
             },
             {
@@ -63,16 +84,25 @@
             },
             {
               type: "bucket",
-              origins: [{ row: 5, col: 9 }],
+              origins: [
+                { row: 5, col: 5 },
+                { row: 0, col: 4 },
+                { row: 5, col: 9 },
+              ],
             },
 
             {
-              type: "anvil",
+              type: "box",
               origins: [
                 { row: 1, col: 1 },
                 { row: 1, col: 2 },
                 { row: 1, col: 3 },
                 { row: 6, col: 3 },
+              ],
+            },
+            {
+              type: "anvil",
+              origins: [
                 { row: 6, col: 4 },
                 { row: 6, col: 5 },
                 { row: 6, col: 6 },
@@ -89,7 +119,7 @@
 
             {
               type: "chair",
-              origins: [{ row: 4, col: 4 }],
+              origins: [{ row: 3, col: 4 }],
             },
           ],
         },
@@ -145,6 +175,17 @@
           movement: "fixed",
           blocks: [
             {
+              nestingSize: 4,
+              walls: ["north", "east", "south", "west"],
+            },
+          ],
+        },
+        box: {
+          name: "box",
+          color: "#977043", //caramel beige
+          movement: "pushable",
+          blocks: [
+            {
               walls: ["north", "east", "south", "west"],
             },
           ],
@@ -163,7 +204,7 @@
         bucket: {
           name: "bucket",
           color: "purple",
-          movement: "fixed",
+          movement: "pushable",
           blocks: [
             {
               nestingSize: 2,
@@ -180,12 +221,12 @@
               walls: ["north", "east", "south", "west"],
             },
             {
-              nestingSize: 2,
+              nestingSize: 3,
               offset: [1, 0],
               walls: ["north", "west"],
             },
             {
-              nestingSize: 2,
+              nestingSize: 3,
               offset: [1, 1],
               walls: ["north", "east"],
             },
@@ -436,7 +477,7 @@
 
             const playerQueue = GetBlockQueue(playerBlocks, direction);
 
-            let grandFinalProposedMovementGroup = [];
+            let movementGroups = [];
 
             for (const player of playerQueue) {
               let proposedMovementGroup = GetProposedMovementGroup(
@@ -459,44 +500,100 @@
                 }
               }
               if (allCanMove) {
-                grandFinalProposedMovementGroup.push(...proposedMovementGroup);
+                movementGroups.push(...proposedMovementGroup);
               }
 
               function GetProposedMovementGroup(player, direction) {
                 const group = [];
-
                 AddToGroup(player);
-
                 return group;
 
                 function AddToGroup(block) {
+                  //Don't move an object twice
                   if (group.includes(block)) {
                     return;
+                  } else {
+                    group.push(block);
                   }
-                  group.push(block);
-                  const cellmates = [...block.cell.contents].sort(
-                    (a, b) => a.nestingSize - b.nestingSize,
+
+                  const cellmates = block.cell.contents.filter(
+                    (cellmate) => cellmate !== block,
                   );
 
                   for (const cellmate of cellmates) {
-                    if (cellmate.walls.includes(direction)) {
-                      AddToGroup(cellmate);
+                    if (cellmate.nestingSize > block.nestingSize) {
+                      //Cellmate is larger
+
+                      if (cellmate.walls.includes(direction)) {
+                        //Cellmate has a wall blocking my exit
+                        console.log(
+                          `${cellmate.entity.prefab.name} is coming with ${block.entity.prefab.name}`,
+                        );
+                        AddToGroup(cellmate);
+                      }
+                    } else if (cellmate.nestingSize < block.nestingSize) {
+                      //Cellmate is smaller
+
+                      if (
+                        block.walls.includes(DIRECTIONS[direction].opposite)
+                      ) {
+                        //Cellmate is trapped inside me
+                        console.log(
+                          `${cellmate.entity.prefab.name} added because ${block.entity.prefab.name} has a ${DIRECTIONS[direction].opposite} wall`,
+                        );
+                        AddToGroup(cellmate);
+                      }
+                    } else {
+                      //Cellmate is the same size as me- uh oh!
+                      console.error(
+                        `Level design error: ${cellmate.entity.prefab.name} and ${block.entity.prefab.name} are both nestingSize ${block.nestingSize} and are sharing a cell`,
+                      );
                     }
                   }
-
+                  //Must have targetCell to proceed checking
                   const targetCell = block.cell.neighbors[direction];
+
                   if (!targetCell) {
                     return;
                   }
 
-                  const obstacles = [...targetCell.contents].sort(
-                    (b, a) => a.nestingSize - b.nestingSize,
-                  );
+                  const obstacles = [...targetCell.contents];
 
                   for (const obstacle of obstacles) {
-                    if (
-                      obstacle.walls.includes(DIRECTIONS[direction].opposite)
-                    ) {
+                    if (obstacle.nestingSize < block.nestingSize) {
+                      //Obstacle is small
+
+                      if (!block.walls.includes(direction)) {
+                        //Block is open to nest around obstacle
+                        // console.log(
+                        //   `${block.entity.prefab.name} is open to receive ${obstacle.entity.prefab.name} because it has no ${[direction]} wall`,
+                        // );
+                        console.log("just a test");
+                        console.log(
+                          `${block.entity.prefab.name} block at [${block.cell.col}, ${block.cell.row}]`,
+                          {
+                            walls: block.walls,
+                            nestingSize: block.nestingSize,
+                            direction,
+                          },
+                        );
+                        console.log("just another test");
+                        continue;
+                      } else {
+                        AddToGroup(obstacle);
+                      }
+                    } else if (obstacle.nestingSize > block.nestingSize) {
+                      // Obstacle is big
+
+                      if (
+                        !obstacle.walls.includes(DIRECTIONS[direction].opposite)
+                      ) {
+                        //Obstacle is open to nest around block
+                        continue;
+                      }
+                      AddToGroup(obstacle);
+                    } else {
+                      //Obstacle and block are same size
                       AddToGroup(obstacle);
                     }
                   }
@@ -512,13 +609,15 @@
               function CanMove(block, direction) {
                 const targetCell = block.cell.neighbors[direction];
 
+                //Don't go off the edge of the board
                 if (!targetCell) {
                   return false;
                 }
 
-                console.log(
-                  `Checking ${block.entity.prefab.name} moving ${direction}`,
-                );
+                //Don't move a fixed object
+                if (block.entity.prefab.movement === "fixed") {
+                  return false;
+                }
 
                 return true;
               }
@@ -538,10 +637,8 @@
               }
             }
 
-            grandFinalProposedMovementGroup = [
-              ...new Set(grandFinalProposedMovementGroup),
-            ];
-            ExecuteMove(grandFinalProposedMovementGroup, direction);
+            movementGroups = [...new Set(movementGroups)];
+            ExecuteMove(movementGroups, direction);
           }
         }
       }
@@ -726,9 +823,9 @@
                 },
 
                 4: {
-                  fill: false,
-                  thickness: 2,
-                  inset: 1,
+                  fill: true,
+                  thickness: 0,
+                  inset: 0,
                 },
               };
 
