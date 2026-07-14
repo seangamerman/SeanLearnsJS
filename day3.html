@@ -40,8 +40,9 @@
     <script>
       // TODO:
       // • finish movement physics:
-      //    • entities & braceMates can't be spliced by containers
-      //    • add svg to show braceMates
+      //    • braced props are remembered by direction, not in a random list
+      //    • entities & braced groups can't be spliced by containers
+      //    • add svg to show braced groups
       //    • design slime integrity (prevent slime from separating from eachother)
       // • add gravity:
       //    • all things are checked for being precarious at every map change
@@ -517,6 +518,10 @@
             RequestPlayerMove(direction);
           }
 
+          if (input.pressed) {
+            RenderScene();
+          }
+
           function RequestPlayerBrace(direction) {
             const players = GAME.players.flatMap((player) => player.blocks);
 
@@ -524,16 +529,13 @@
               const braceMate = FindBraceMate(player, direction);
               if (braceMate) {
                 if (
-                  player.braceMates.includes(braceMate) &&
-                  braceMate.braceMates.includes(player)
+                  player.braceMates[direction] === braceMate &&
+                  braceMate.braceMates[DIRECTIONS[direction].opposite] ===
+                    player
                 ) {
-                  //unbrace if braced
-                  RemoveFromArray(player.braceMates, braceMate);
-                  RemoveFromArray(braceMate.braceMates, player);
+                  Unbrace(player, braceMate, direction);
                 } else {
-                  //brace if not already braced
-                  player.braceMates.push(braceMate);
-                  braceMate.braceMates.push(player);
+                  Brace(player, braceMate, direction);
                 }
               }
             }
@@ -551,7 +553,7 @@
                 const eligibleContainers = [];
                 for (const container of player.cell.contents) {
                   if (container === player) continue;
-                  if (container.walls.includes(direction)) {
+                  if (container.walls[direction]) {
                     eligibleContainers.push(container);
                   }
                 }
@@ -577,8 +579,7 @@
 
                 for (const neighbor of targetCell.contents) {
                   if (neighbor.entity.prefab.name === "slime") continue;
-                  if (!neighbor.walls.includes(DIRECTIONS[direction].opposite))
-                    continue;
+                  if (!neighbor.walls[DIRECTIONS[direction].opposite]) continue;
 
                   eligibleNeighbors.push(neighbor);
                 }
@@ -666,16 +667,14 @@
                     if (cellmate.nestingSize > block.nestingSize) {
                       //Cellmate is larger
 
-                      if (cellmate.walls.includes(direction)) {
+                      if (cellmate.walls[direction]) {
                         //Cellmate has a wall blocking my exit
                         AddToGroup(cellmate);
                       }
                     } else if (cellmate.nestingSize < block.nestingSize) {
                       //Cellmate is smaller
 
-                      if (
-                        block.walls.includes(DIRECTIONS[direction].opposite)
-                      ) {
+                      if (block.walls[DIRECTIONS[direction].opposite]) {
                         //Cellmate added because block has a back wall trapping them
                         AddToGroup(cellmate);
                       }
@@ -700,7 +699,7 @@
                     if (obstacle.nestingSize < block.nestingSize) {
                       //Obstacle is small
 
-                      if (!block.walls.includes(direction)) {
+                      if (!block.walls[direction]) {
                         //Block is open to nest around obstacle
                         continue;
                       } else {
@@ -709,9 +708,7 @@
                     } else if (obstacle.nestingSize > block.nestingSize) {
                       // Obstacle is big
 
-                      if (
-                        !obstacle.walls.includes(DIRECTIONS[direction].opposite)
-                      ) {
+                      if (!obstacle.walls[DIRECTIONS[direction].opposite]) {
                         //Obstacle is open to nest around block
                         continue;
                       }
@@ -726,8 +723,10 @@
                     AddToGroup(sibling);
                   }
 
-                  for (const braceMate of block.braceMates) {
-                    AddToGroup(braceMate);
+                  for (const braceMate of Object.values(block.braceMates)) {
+                    if (braceMate) {
+                      AddToGroup(braceMate);
+                    }
                   }
                 }
               }
@@ -764,6 +763,49 @@
 
             movementGroups = [...new Set(movementGroups)];
             ExecuteMove(movementGroups, direction);
+          }
+
+          function RenderScene() {
+            const players = GAME.players.flatMap((player) => player.blocks);
+            //WIP
+            for (const player of players) {
+              if (player.braceMate.north === null) {
+                //UncolorWall(player.northWall)
+              } else {
+                //ColorWall(player.northWall)
+              }
+
+              if (player.braceMate.east === null) {
+                //UncolorWall(player.eastWall)
+              } else {
+                //ColorWall(player.eastWall)
+              }
+
+              if (player.braceMate.south === null) {
+                //UncolorWall(player.southWall)
+              } else {
+                //ColorWall(player.southWall)
+              }
+
+              if (player.braceMate.west === null) {
+                //UncolorWall(player.westhWall)
+              } else {
+                //ColorWall(player.westWall)
+              }
+            }
+
+            function ColorWall() {}
+
+            function UncolorWall() {}
+
+            function GetRelationship(player, braceMate) {
+              if (
+                player.cell.col === braceMate.cell.col + 1 &&
+                player.cell.row === braceMate.cell.row
+              ) {
+                return "east";
+              }
+            }
           }
         }
       }
@@ -889,11 +931,21 @@
               const blockGameObject = {
                 type: "block",
                 entity,
-                walls: block.walls ?? [],
+                walls: {
+                  north: block.walls?.includes("north") ?? false,
+                  east: block.walls?.includes("east") ?? false,
+                  south: block.walls?.includes("south") ?? false,
+                  west: block.walls?.includes("west") ?? false,
+                },
                 nestingSize: block.nestingSize ?? 0,
                 cell,
                 blockDiv,
-                braceMates: [],
+                braceMates: {
+                  north: null,
+                  east: null,
+                  south: null,
+                  west: null,
+                },
               };
 
               entity.blocks.push(blockGameObject);
@@ -913,8 +965,8 @@
                 CreateRect(0, 0, SETTINGS.cellSize, SETTINGS.cellSize, color),
               );
             }
-
-            for (const wall of block.walls ?? []) {
+            console.log(block.walls);
+            for (const wall of block.walls) {
               DrawWall(svg, wall, color, style);
             }
 
@@ -1028,6 +1080,16 @@
 
           svg.appendChild(line);
         }
+      }
+
+      function Unbrace(player, braceMate, direction) {
+        player.braceMates[direction] = null;
+        braceMate.braceMates[DIRECTIONS[direction].opposite] = null;
+      }
+
+      function Brace(player, braceMate, direction) {
+        player.braceMates[direction] = braceMate;
+        braceMate.braceMates[DIRECTIONS[direction].opposite] = player;
       }
 
       //HELPERS
