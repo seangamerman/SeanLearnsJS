@@ -28,16 +28,14 @@
     </style>
     <script>
       // TODO:
-      // • slime bracing:
-      //    √ brace with shift + key
-      //    • unbrace with shift + key
-      //    • break brace if spliced by an interloping container
-      //    • visual
-      // • slime integrity (slime sticks to itself)
-      // • gravity
+      // • finish movement physics:
+      //    • entities & braceMates can't be spliced by containers
+      //    • add svg to show braceMates
+      //    • design slime integrity (prevent slime from separating from eachother)
+      // • add gravity:
       //    • all things are checked for being precarious at every map change
       //    • items sitting on a shelf should be dragged with the shelf
-      // • level design maker
+      // • create level design maker:
       //    • tap to lay map tiles
       //    • upload/download seeds to save and edit finished maps
 
@@ -47,185 +45,6 @@
         currentMap: null,
         running: true,
         entities: [],
-      };
-      const MAPS = [
-        {
-          name: "Start Map",
-          rowCount: 9,
-          colCount: 12,
-
-          entities: [
-            {
-              type: "slime",
-              origins: [
-                { row: 4, col: 6 },
-                { row: 4, col: 5 },
-                { row: 5, col: 5 },
-                { row: 5, col: 6 },
-              ],
-            },
-            {
-              type: "cup",
-              origins: [{ row: 3, col: 7 }],
-            },
-            {
-              type: "bucket",
-              origins: [
-                { row: 3, col: 8 },
-                { row: 5, col: 9 },
-              ],
-            },
-
-            {
-              type: "box",
-              origins: [
-                { row: 4, col: 7 },
-                { row: 4, col: 8 },
-                { row: 5, col: 7 },
-              ],
-            },
-            {
-              type: "ground",
-              origins: [
-                { row: 0, col: 11 },
-                { row: 1, col: 10 },
-                { row: 0, col: 6 },
-                { row: 0, col: 5 },
-                { row: 1, col: 0 },
-                { row: 2, col: 0 },
-                { row: 2, col: 1 },
-                { row: 3, col: 0 },
-                { row: 6, col: 1 },
-                { row: 6, col: 2 },
-                { row: 6, col: 4 },
-                { row: 6, col: 5 },
-                { row: 6, col: 6 },
-                { row: 6, col: 7 },
-                { row: 6, col: 8 },
-                { row: 6, col: 9 },
-                { row: 7, col: 1 },
-                { row: 7, col: 2 },
-                { row: 7, col: 3 },
-                { row: 7, col: 4 },
-                { row: 7, col: 5 },
-              ],
-            },
-
-            {
-              type: "chair",
-              origins: [{ row: 4, col: 2 }],
-            },
-          ],
-        },
-
-        {
-          name: "Second Map",
-          rowCount: 10,
-          colCount: 6,
-
-          entities: [
-            {
-              type: "slime",
-              origins: [{ row: 1, col: 1 }],
-            },
-            {
-              type: "cup",
-              origins: [{ row: 1, col: 2 }],
-            },
-          ],
-        },
-
-        {
-          name: "Third Map",
-          rowCount: 3,
-          colCount: 4,
-
-          entities: [
-            {
-              type: "slime",
-              origins: [{ row: 1, col: 1 }],
-            },
-            {
-              type: "anvil",
-              origins: [{ row: 1, col: 2 }],
-            },
-          ],
-        },
-      ];
-      const PREFABS = {
-        slime: {
-          name: "slime",
-          color: "limegreen",
-          movement: "playable",
-          blocks: [
-            {
-              walls: ["north", "east", "south", "west"],
-            },
-          ],
-        },
-        ground: {
-          name: "ground",
-          color: "gray",
-          movement: "fixed",
-          blocks: [
-            {
-              nestingSize: 4,
-              walls: ["north", "east", "south", "west"],
-            },
-          ],
-        },
-        box: {
-          name: "box",
-          color: "#977043", //caramel beige
-          movement: "pushable",
-          blocks: [
-            {
-              walls: ["north", "east", "south", "west"],
-            },
-          ],
-        },
-        cup: {
-          name: "cup",
-          color: "#87CEEB",
-          movement: "pushable",
-          blocks: [
-            {
-              nestingSize: 1,
-              walls: ["east", "south", "west"],
-            },
-          ],
-        },
-        bucket: {
-          name: "bucket",
-          color: "purple",
-          movement: "pushable",
-          blocks: [
-            {
-              nestingSize: 2,
-              walls: ["north", "east", "south"],
-            },
-          ],
-        },
-        chair: {
-          name: "chair",
-          color: "orange",
-          movement: "pushable",
-          blocks: [
-            {
-              walls: ["north", "east", "south", "west"],
-            },
-            {
-              nestingSize: 3,
-              offset: [1, 0],
-              walls: ["north", "west"],
-            },
-            {
-              nestingSize: 3,
-              offset: [1, 1],
-              walls: ["north", "east"],
-            },
-          ],
-        },
       };
       const DIRECTIONS = {
         north: {
@@ -322,6 +141,238 @@
         holdDelay: 100, //milliseconds before a tap is considered a hold
         moveDelay: 100, //milliseconds between frames of movement
       };
+      const PREFABS = {
+        slime: {
+          name: "slime",
+          color: "limegreen",
+          movement: "playable",
+          blocks: [
+            {
+              walls: ["north", "east", "south", "west"],
+            },
+          ],
+        },
+        ground: {
+          name: "ground",
+          color: "gray",
+          movement: "fixed",
+          blocks: [
+            {
+              nestingSize: 4,
+              walls: ["north", "east", "south", "west"],
+            },
+          ],
+        },
+        box: {
+          name: "box",
+          color: "#977043", //caramel beige
+          movement: "pushable",
+          blocks: [
+            {
+              walls: ["north", "east", "south", "west"],
+            },
+          ],
+        },
+        cup: {
+          name: "cup",
+          color: "#87CEEB",
+          movement: "pushable",
+          blocks: [
+            {
+              nestingSize: 1,
+              walls: ["east", "south", "west"],
+            },
+          ],
+        },
+        bucket: {
+          name: "bucket",
+          color: "purple",
+          movement: "pushable",
+          blocks: [
+            {
+              nestingSize: 2,
+              walls: ["north", "east", "south"],
+            },
+          ],
+        },
+        corner: {
+          name: "corner",
+          color: "yellow",
+          movement: "pushable",
+          blocks: [
+            {
+              nestingSize: 3,
+              walls: ["north", "west"],
+            },
+          ],
+        },
+        bigbox: {
+          name: "bigbox",
+          color: "pink",
+          movement: "pushable",
+          blocks: [
+            {
+              nestingSize: 0,
+              walls: ["north", "east", "south", "west"],
+            },
+            {
+              nestingSize: 0,
+              offset: [1, 0],
+              walls: ["north", "east", "south", "west"],
+            },
+            {
+              nestingSize: 0,
+              offset: [0, 1],
+              walls: ["north", "east", "south", "west"],
+            },
+            {
+              nestingSize: 0,
+              offset: [1, 1],
+              walls: ["north", "east", "south", "west"],
+            },
+          ],
+        },
+        chair: {
+          name: "chair",
+          color: "orange",
+          movement: "pushable",
+          blocks: [
+            {
+              walls: ["north", "east", "south", "west"],
+            },
+            {
+              nestingSize: 3,
+              offset: [1, 0],
+              walls: ["north", "west"],
+            },
+            {
+              nestingSize: 3,
+              offset: [1, 1],
+              walls: ["north", "east"],
+            },
+          ],
+        },
+      };
+      const MAPS = [
+        {
+          name: "Start Map",
+          rowCount: 9,
+          colCount: 12,
+
+          entities: [
+            {
+              type: "slime",
+              origins: [
+                { row: 2, col: 6 },
+                // { row: 4, col: 6 },
+                // { row: 4, col: 5 },
+                // { row: 5, col: 5 },
+                // { row: 5, col: 6 },
+              ],
+            },
+            {
+              type: "bigbox",
+              origins: [
+                { row: 4, col: 5 },
+                // { row: 4, col: 6 },
+                // { row: 4, col: 5 },
+                // { row: 5, col: 5 },
+                // { row: 5, col: 6 },
+              ],
+            },
+            {
+              type: "cup",
+              origins: [{ row: 3, col: 7 }],
+            },
+            {
+              type: "bucket",
+              origins: [
+                { row: 3, col: 8 },
+                { row: 5, col: 9 },
+                { row: 4, col: 3 },
+              ],
+            },
+            {
+              type: "corner",
+              origins: [{ row: 3, col: 6 }],
+            },
+
+            {
+              type: "box",
+              origins: [
+                { row: 4, col: 7 },
+                { row: 4, col: 8 },
+                { row: 5, col: 7 },
+              ],
+            },
+            {
+              type: "ground",
+              origins: [
+                { row: 0, col: 11 },
+                { row: 1, col: 10 },
+                { row: 0, col: 6 },
+                { row: 0, col: 5 },
+                { row: 1, col: 0 },
+                { row: 2, col: 0 },
+                { row: 2, col: 1 },
+                { row: 3, col: 0 },
+                { row: 6, col: 1 },
+                { row: 6, col: 2 },
+                { row: 6, col: 4 },
+                { row: 6, col: 5 },
+                { row: 6, col: 6 },
+                { row: 6, col: 7 },
+                { row: 6, col: 8 },
+                { row: 6, col: 9 },
+                { row: 7, col: 1 },
+                { row: 7, col: 2 },
+                { row: 7, col: 3 },
+                { row: 7, col: 4 },
+                { row: 7, col: 5 },
+              ],
+            },
+
+            {
+              type: "chair",
+              origins: [{ row: 4, col: 2 }],
+            },
+          ],
+        },
+
+        {
+          name: "Second Map",
+          rowCount: 10,
+          colCount: 6,
+
+          entities: [
+            {
+              type: "slime",
+              origins: [{ row: 1, col: 1 }],
+            },
+            {
+              type: "cup",
+              origins: [{ row: 1, col: 2 }],
+            },
+          ],
+        },
+
+        {
+          name: "Third Map",
+          rowCount: 3,
+          colCount: 4,
+
+          entities: [
+            {
+              type: "slime",
+              origins: [{ row: 1, col: 1 }],
+            },
+            {
+              type: "anvil",
+              origins: [{ row: 1, col: 2 }],
+            },
+          ],
+        },
+      ];
       const SETTINGS = {
         startLevel: 0,
         cellSize: 60,
@@ -459,24 +510,33 @@
             const players = GAME.players.flatMap((player) => player.blocks);
 
             for (const player of players) {
-              const braceMate = FindBraceMate(player);
+              const braceMate = FindBraceMate(player, direction);
               if (braceMate) {
-                //Add to eachother's brace lists
-                player.braceMates.push(braceMate);
-                braceMate.braceMates.push(player);
+                if (
+                  player.braceMates.includes(braceMate) &&
+                  braceMate.braceMates.includes(player)
+                ) {
+                  //unbrace if braced
+                  RemoveFromArray(player.braceMates, braceMate);
+                  RemoveFromArray(braceMate.braceMates, player);
+                } else {
+                  //brace if not already braced
+                  player.braceMates.push(braceMate);
+                  braceMate.braceMates.push(player);
+                }
               }
             }
 
-            function FindBraceMate(player) {
+            function FindBraceMate(player, direction) {
               //Check for containers or neighbors to brace to
-              const container = GetContainer();
+              const container = GetNearestContainer();
               if (container) {
                 return container;
               } else {
-                return GetNeighbor();
+                return GetNearestNeighbor();
               }
 
-              function GetContainer() {
+              function GetNearestContainer() {
                 const eligibleContainers = [];
                 for (const container of player.cell.contents) {
                   if (container === player) continue;
@@ -484,10 +544,9 @@
                     eligibleContainers.push(container);
                   }
                 }
+                return SmallestOf(eligibleContainers);
 
-                return GetNearest(eligibleContainers);
-
-                function GetNearest(items) {
+                function SmallestOf(items) {
                   return items.reduce((best, item) => {
                     if (item.nestingSize <= player.nestingSize) return best;
                     if (!best || item.nestingSize < best.nestingSize)
@@ -497,7 +556,7 @@
                 }
               }
 
-              function GetNeighbor() {
+              function GetNearestNeighbor() {
                 const targetCell = player.cell.neighbors[direction];
                 if (!targetCell) {
                   return null;
@@ -960,10 +1019,18 @@
         }
       }
 
+      //HELPERS
       function GetDirectionFromKey(key) {
         return DIRECTIONS.all.find((direction) =>
           DIRECTIONS[direction].keys.includes(key),
         );
+      }
+
+      function RemoveFromArray(array, item) {
+        const index = array.indexOf(item);
+        if (index !== -1) {
+          array.splice(index, 1);
+        }
       }
     </script>
   </body>
