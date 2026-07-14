@@ -6,10 +6,21 @@
     <title>SlimeGame</title>
   </head>
   <body style="background-color: black">
+    <h1>Play <span style="color: limegreen"> Slime Game!</span></h1>
+    <div id="board" style="display: grid" ;></div>
     <button id="reloadLevelBtn">Reload</button>
     <button id="nextLevelBtn">Next</button>
-    <div id="board" style="display: grid" ;></div>
+    <h1>Controls</h1>
+    <p>• <span style="color: limegreen">WASD keys</span> to move</p>
+    <p>
+      • <span style="color: limegreen">Shift + WASD keys</span> to toggle
+      attaching to something
+    </p>
     <style>
+      body {
+        color: gray;
+        font-family: Arial, Helvetica, sans-serif;
+      }
       button {
         color: gray;
         border: 1px solid gray;
@@ -931,8 +942,8 @@
 
                 3: {
                   fill: false,
-                  thickness: 4,
-                  inset: 2,
+                  thickness: 3,
+                  inset: 1.5,
                 },
 
                 4: {
