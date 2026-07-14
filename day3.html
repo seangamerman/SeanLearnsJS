@@ -6,8 +6,6 @@
     <title>SlimeGame</title>
   </head>
   <body style="background-color: black">
-    <a href="day2.html" rel="noopener noreferrer">Prev</a>
-    <span>| July 11, 2026 | Next</span>
     <button id="reloadLevelBtn">Reload</button>
     <button id="nextLevelBtn">Next</button>
     <div id="board" style="display: grid" ;></div>
@@ -29,7 +27,20 @@
       }
     </style>
     <script>
-      const CELL_SIZE = 60;
+      // TODO:
+      // • slime bracing:
+      //    √ brace with shift + key
+      //    • unbrace with shift + key
+      //    • break brace if spliced by an interloping container
+      //    • visual
+      // • slime integrity (slime sticks to itself)
+      // • gravity
+      //    • all things are checked for being precarious at every map change
+      //    • items sitting on a shelf should be dragged with the shelf
+      // • level design maker
+      //    • tap to lay map tiles
+      //    • upload/download seeds to save and edit finished maps
+
       const BOARD = document.getElementById("board");
       const CELLS = { grid: [], all: [] };
       const GAME = {
@@ -220,7 +231,7 @@
         north: {
           row: -1,
           col: 0,
-          keys: ["w", "ArrowUp"],
+          keys: ["w", "W", "ArrowUp"],
           type: "cardinal",
           opposite: "south",
         },
@@ -236,7 +247,7 @@
         east: {
           row: 0,
           col: 1,
-          keys: ["d", "ArrowRight"],
+          keys: ["d", "D", "ArrowRight"],
           type: "cardinal",
           opposite: "west",
         },
@@ -252,7 +263,7 @@
         south: {
           row: 1,
           col: 0,
-          keys: ["s", "ArrowDown"],
+          keys: ["s", "S", "ArrowDown"],
           type: "cardinal",
           opposite: "north",
         },
@@ -268,7 +279,7 @@
         west: {
           row: 0,
           col: -1,
-          keys: ["a", "ArrowLeft"],
+          keys: ["a", "A", "ArrowLeft"],
           type: "cardinal",
           opposite: "east",
         },
@@ -311,7 +322,18 @@
         holdDelay: 100, //milliseconds before a tap is considered a hold
         moveDelay: 100, //milliseconds between frames of movement
       };
-      let currentLevel = 0;
+      const SETTINGS = {
+        startLevel: 0,
+        cellSize: 60,
+
+        //physics
+        enableGravity: true,
+
+        //player behavior
+        enableSlimeBracing: true,
+        enableSlimeIntegrity: true,
+      };
+      let currentLevel = SETTINGS.startLevel;
 
       LoadGame();
 
@@ -353,11 +375,12 @@
               const input = INPUT[direction];
 
               if (!input.held) {
-                const now = Date.now();
+                input.pressed = true;
+                input.held = true;
 
+                const now = Date.now();
                 input.lastPressed = now;
                 input.lastMove = now;
-                input.pressed = true;
               }
 
               const stack = INPUT.directionStack;
@@ -368,8 +391,6 @@
               }
 
               stack.push(direction);
-
-              input.held = true;
             }
 
             if (event.key === "Shift") {
@@ -407,7 +428,6 @@
         CheckForInput();
 
         function CheckForInput() {
-          const now = Date.now();
           const direction = INPUT.directionStack.at(-1);
 
           if (!direction) {
@@ -415,20 +435,95 @@
           }
 
           const input = INPUT[direction];
+          const now = Date.now();
 
-          // Key tap
+          // Initial key press
           if (input.pressed) {
+            if (INPUT.shift) {
+              RequestPlayerBrace(direction);
+            }
             RequestPlayerMove(direction);
             input.pressed = false;
             return;
           }
 
-          // Key hold
+          // Hold key to repeat
           if (
             now - input.lastPressed >= INPUT.holdDelay &&
             now - input.lastMove >= INPUT.moveDelay
           ) {
             RequestPlayerMove(direction);
+          }
+
+          function RequestPlayerBrace(direction) {
+            const players = GAME.players.flatMap((player) => player.blocks);
+
+            for (const player of players) {
+              const braceMate = FindBraceMate(player);
+              if (braceMate) {
+                //Add to eachother's brace lists
+                player.braceMates.push(braceMate);
+                braceMate.braceMates.push(player);
+              }
+            }
+
+            function FindBraceMate(player) {
+              //Check for containers or neighbors to brace to
+              const container = GetContainer();
+              if (container) {
+                return container;
+              } else {
+                return GetNeighbor();
+              }
+
+              function GetContainer() {
+                const eligibleContainers = [];
+                for (const container of player.cell.contents) {
+                  if (container === player) continue;
+                  if (container.walls.includes(direction)) {
+                    eligibleContainers.push(container);
+                  }
+                }
+
+                return GetNearest(eligibleContainers);
+
+                function GetNearest(items) {
+                  return items.reduce((best, item) => {
+                    if (item.nestingSize <= player.nestingSize) return best;
+                    if (!best || item.nestingSize < best.nestingSize)
+                      return item;
+                    return best;
+                  }, null);
+                }
+              }
+
+              function GetNeighbor() {
+                const targetCell = player.cell.neighbors[direction];
+                if (!targetCell) {
+                  return null;
+                }
+
+                const eligibleNeighbors = [];
+
+                for (const neighbor of targetCell.contents) {
+                  if (neighbor.entity.prefab.name === "slime") continue;
+                  if (!neighbor.walls.includes(DIRECTIONS[direction].opposite))
+                    continue;
+
+                  eligibleNeighbors.push(neighbor);
+                }
+
+                return GetOutermost(eligibleNeighbors);
+
+                function GetOutermost(items) {
+                  return items.length
+                    ? items.reduce((best, item) =>
+                        item.nestingSize > best.nestingSize ? item : best,
+                      )
+                    : null;
+                }
+              }
+            }
           }
 
           function GetBlockQueue(blocks, direction) {
@@ -521,6 +616,7 @@
                       );
                     }
                   }
+
                   //Must have targetCell to proceed checking
                   const targetCell = block.cell.neighbors[direction];
 
@@ -557,9 +653,11 @@
                   }
 
                   for (const sibling of block.entity.blocks) {
-                    if (!group.includes(sibling)) {
-                      AddToGroup(sibling);
-                    }
+                    AddToGroup(sibling);
+                  }
+
+                  for (const braceMate of block.braceMates) {
+                    AddToGroup(braceMate);
                   }
                 }
               }
@@ -622,8 +720,8 @@
         }
 
         function CreateCells() {
-          BOARD.style.gridTemplateRows = `repeat(${map.rowCount}, ${CELL_SIZE}px)`;
-          BOARD.style.gridTemplateColumns = `repeat(${map.colCount}, ${CELL_SIZE}px)`;
+          BOARD.style.gridTemplateRows = `repeat(${map.rowCount}, ${SETTINGS.cellSize}px)`;
+          BOARD.style.gridTemplateColumns = `repeat(${map.colCount}, ${SETTINGS.cellSize}px)`;
 
           for (let row = 0; row < map.rowCount; row++) {
             CELLS.grid[row] = [];
@@ -725,6 +823,7 @@
                 nestingSize: block.nestingSize ?? 0,
                 cell,
                 blockDiv,
+                braceMates: [],
               };
 
               entity.blocks.push(blockGameObject);
@@ -740,7 +839,9 @@
             svg.style.zIndex = nestingSize;
 
             if (style.fill) {
-              svg.appendChild(CreateRect(0, 0, CELL_SIZE, CELL_SIZE, color));
+              svg.appendChild(
+                CreateRect(0, 0, SETTINGS.cellSize, SETTINGS.cellSize, color),
+              );
             }
 
             for (const wall of block.walls ?? []) {
@@ -759,14 +860,14 @@
 
                 1: {
                   fill: false,
-                  thickness: 10,
-                  inset: 5,
+                  thickness: 14,
+                  inset: 7,
                 },
 
                 2: {
                   fill: false,
-                  thickness: 7,
-                  inset: 3.5,
+                  thickness: 10,
+                  inset: 5,
                 },
 
                 3: {
@@ -807,8 +908,8 @@
               "svg",
             );
 
-            svg.setAttribute("width", CELL_SIZE);
-            svg.setAttribute("height", CELL_SIZE);
+            svg.setAttribute("width", SETTINGS.cellSize);
+            svg.setAttribute("height", SETTINGS.cellSize);
             svg.style.position = "absolute";
 
             return svg;
@@ -822,7 +923,7 @@
           );
 
           const MIN = style.inset;
-          const MAX = CELL_SIZE - style.inset;
+          const MAX = SETTINGS.cellSize - style.inset;
 
           if (direction === "north") {
             line.setAttribute("x1", MIN);
