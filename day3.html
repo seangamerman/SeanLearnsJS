@@ -518,10 +518,6 @@
             RequestPlayerMove(direction);
           }
 
-          if (input.pressed) {
-            RenderScene();
-          }
-
           function RequestPlayerBrace(direction) {
             const players = GAME.players.flatMap((player) => player.blocks);
 
@@ -540,6 +536,8 @@
               }
             }
 
+            RenderScene();
+
             function FindBraceMate(player, direction) {
               //Check for containers or neighbors to brace to
               const container = GetNearestContainer();
@@ -553,7 +551,7 @@
                 const eligibleContainers = [];
                 for (const container of player.cell.contents) {
                   if (container === player) continue;
-                  if (container.walls[direction]) {
+                  if (container.walls[direction].exists) {
                     eligibleContainers.push(container);
                   }
                 }
@@ -579,7 +577,8 @@
 
                 for (const neighbor of targetCell.contents) {
                   if (neighbor.entity.prefab.name === "slime") continue;
-                  if (!neighbor.walls[DIRECTIONS[direction].opposite]) continue;
+                  if (!neighbor.walls[DIRECTIONS[direction].opposite].exists)
+                    continue;
 
                   eligibleNeighbors.push(neighbor);
                 }
@@ -667,14 +666,14 @@
                     if (cellmate.nestingSize > block.nestingSize) {
                       //Cellmate is larger
 
-                      if (cellmate.walls[direction]) {
+                      if (cellmate.walls[direction].exists) {
                         //Cellmate has a wall blocking my exit
                         AddToGroup(cellmate);
                       }
                     } else if (cellmate.nestingSize < block.nestingSize) {
                       //Cellmate is smaller
 
-                      if (block.walls[DIRECTIONS[direction].opposite]) {
+                      if (block.walls[DIRECTIONS[direction].opposite].exists) {
                         //Cellmate added because block has a back wall trapping them
                         AddToGroup(cellmate);
                       }
@@ -699,7 +698,7 @@
                     if (obstacle.nestingSize < block.nestingSize) {
                       //Obstacle is small
 
-                      if (!block.walls[direction]) {
+                      if (!block.walls[direction].exists) {
                         //Block is open to nest around obstacle
                         continue;
                       } else {
@@ -708,7 +707,9 @@
                     } else if (obstacle.nestingSize > block.nestingSize) {
                       // Obstacle is big
 
-                      if (!obstacle.walls[DIRECTIONS[direction].opposite]) {
+                      if (
+                        !obstacle.walls[DIRECTIONS[direction].opposite].exists
+                      ) {
                         //Obstacle is open to nest around block
                         continue;
                       }
@@ -766,37 +767,28 @@
           }
 
           function RenderScene() {
-            const players = GAME.players.flatMap((player) => player.blocks);
             //WIP
+            const players = GAME.players.flatMap((player) => player.blocks);
+
             for (const player of players) {
-              if (player.braceMate.north === null) {
-                //UncolorWall(player.northWall)
-              } else {
-                //ColorWall(player.northWall)
-              }
+              for (const direction of Object.keys(player.braceMates)) {
+                const wall = player.walls[direction];
 
-              if (player.braceMate.east === null) {
-                //UncolorWall(player.eastWall)
-              } else {
-                //ColorWall(player.eastWall)
-              }
-
-              if (player.braceMate.south === null) {
-                //UncolorWall(player.southWall)
-              } else {
-                //ColorWall(player.southWall)
-              }
-
-              if (player.braceMate.west === null) {
-                //UncolorWall(player.westhWall)
-              } else {
-                //ColorWall(player.westWall)
+                if (player.braceMates[direction] === null) {
+                  UncolorWall(wall);
+                } else {
+                  ColorWall(wall);
+                }
               }
             }
 
-            function ColorWall() {}
+            function ColorWall(wall) {
+              wall.element.setAttribute("visibility", "visible");
+            }
 
-            function UncolorWall() {}
+            function UncolorWall(wall) {
+              wall.element.setAttribute("visibility", "hidden");
+            }
 
             function GetRelationship(player, braceMate) {
               if (
@@ -926,20 +918,31 @@
             for (const block of prefab.blocks) {
               const [offY, offX] = block.offset ?? [0, 0];
               const cell = CELLS.grid[origin.row + offY][origin.col + offX];
-              const blockDiv = RenderBlock(block, prefab.color ?? "magenta");
 
               const blockGameObject = {
                 type: "block",
                 entity,
                 walls: {
-                  north: block.walls?.includes("north") ?? false,
-                  east: block.walls?.includes("east") ?? false,
-                  south: block.walls?.includes("south") ?? false,
-                  west: block.walls?.includes("west") ?? false,
+                  north: {
+                    exists: block.walls?.includes("north") ?? false,
+                    element: null,
+                  },
+                  east: {
+                    exists: block.walls?.includes("east") ?? false,
+                    element: null,
+                  },
+                  south: {
+                    exists: block.walls?.includes("south") ?? false,
+                    element: null,
+                  },
+                  west: {
+                    exists: block.walls?.includes("west") ?? false,
+                    element: null,
+                  },
                 },
                 nestingSize: block.nestingSize ?? 0,
                 cell,
-                blockDiv,
+                blockDiv: null,
                 braceMates: {
                   north: null,
                   east: null,
@@ -948,9 +951,13 @@
                 },
               };
 
+              blockGameObject.blockDiv = RenderBlock(
+                blockGameObject,
+                prefab.color ?? "magenta",
+              );
               entity.blocks.push(blockGameObject);
               cell.contents.push(blockGameObject);
-              cell.appendChild(blockDiv);
+              cell.appendChild(blockGameObject.blockDiv);
             }
           }
 
@@ -958,6 +965,7 @@
             const nestingSize = block.nestingSize ?? 0;
             const svg = CreateSvg();
             const style = GetNestingStyle(nestingSize);
+
             svg.style.zIndex = nestingSize;
 
             if (style.fill) {
@@ -965,9 +973,22 @@
                 CreateRect(0, 0, SETTINGS.cellSize, SETTINGS.cellSize, color),
               );
             }
-            console.log(block.walls);
-            for (const wall of block.walls) {
-              DrawWall(svg, wall, color, style);
+
+            for (const [direction, wall] of Object.entries(block.walls)) {
+              if (wall.exists) {
+                wall.element = DrawWall(svg, direction, color, style);
+              }
+            }
+
+            for (const [direction, wall] of Object.entries(block.walls)) {
+              if (wall.exists) {
+                wall.element = DrawWall(svg, direction, color, style);
+
+                if (block.entity.prefab.movement === "playable") {
+                  wall.element.setAttribute("stroke", "#66E066"); //braced slime edge color
+                  wall.element.setAttribute("visibility", "hidden");
+                }
+              }
             }
 
             return svg;
@@ -976,8 +997,8 @@
               const styles = {
                 0: {
                   fill: true,
-                  thickness: 0,
-                  inset: 0,
+                  thickness: 5,
+                  inset: 2.5,
                 },
 
                 1: {
@@ -1079,6 +1100,7 @@
           line.setAttribute("stroke-width", style.thickness);
 
           svg.appendChild(line);
+          return line;
         }
       }
 
